@@ -1,13 +1,18 @@
 /*
-x Signal K json /API
+x aisData Array
+x add aisData array to json
+x Read config file
+x Parse API and connect to gauge
+x DONE Signal K json /API
 x multi UDP
-x Show last 20 NMEA sentences page
+x DONE Show last 20 NMEA sentences page
 
 https://github.com/jcable/nmea-link
 
 */
 
 #include "FS.h"
+#include "Nmea2wifi.h"
 
 #include <ESP8266WiFi.h>            // https://github.com/esp8266/Arduino
 #include <WiFiUDP.h>
@@ -20,84 +25,98 @@ https://github.com/jcable/nmea-link
 #include <ESP8266mDNS.h>            // https://github.com/esp8266/Arduino/tree/master/libraries/ESP8266mDNS
 
 // NMEA sentence parser
-#include <TinyGPS++.h>              // https://github.com/mikalhart/TinyGPS https://github.com/mikalhart/TinyGPSPlus
+#include "TinyGPS++.h"              // https://github.com/mikalhart/TinyGPS https://github.com/mikalhart/TinyGPSPlus
 
 // json builder
 #include <ArduinoJson.h>
 
 // Time lib
 #include <TimeLib.h>                // http://playground.arduino.cc/Code/Time
-char gpsTimestamp_buffer[24] = "1970-01-01T00:00:01.00";       //json format
-char currentTimestamp_buffer[24] = "1970-01-01T00:00:01.00"; 
 
 // SoftSerial for NMEA input (or for the debug....)
 #include <SoftwareSerial.h>
 
+// Timer for LED blinks
 #include <Metro.h>
 
+// OTA stuff
 #include <ArduinoOTA.h>
 
 // Defines
-#define OTA 1                       // Use OverTheAir Updates
-#define MAX_SRV_CLIENTS 5           // How many clients should be to connect simultainiuslys
-#define NORMAL_WIFI false           // Wifimanager normal start
-#define RESET_WIFI true             // Wifimanager reset stored config
-#define NMEA_MAX_LENGTH 200         // Max charaters in a NMEA sentence
-#define MAX_UDP_BUFFER 512
-#define WEBPORT 80
-#define HOSTNAME "nmea2wifi"
-#define LED LED_BUILTIN
-#define MAX_LOG_FILE_SIZE 5000
-#define NMEAPORT Serial             //#define NMEAPORT nmeaSerial
-#define DEBUGPORT Serial
+#define         OTA               1                 // Use OverTheAir Updates
+#define         MAX_SRV_CLIENTS   5                 // How many clients should be to connect simultainiuslys
+#define         NORMAL_WIFI       false             // Wifimanager normal start
+#define         RESET_WIFI        true              // Wifimanager reset stored config
+#define         NMEA_MAX_LENGTH   200               // Max charaters in a NMEA sentence
+#define         MAX_UDP_BUFFER    512
+#define         HOSTNAME          "nmeawifi"
+#define         LED               LED_BUILTIN
+#define         MAX_LOG_FILE_SIZE 5000
+#define         NMEAPORT          Serial            // #define NMEAPORT nmeaSerial
+#define         DEBUGPORT         Serial
+#define         MAXSTR            32
 
-const char compile_date[] = __DATE__ " " __TIME__;
-
-const char ssid[32] = HOSTNAME;         // SSID and Hostname for device
-const char password[32] = "admin";      // OTA password
-const int boatMMSI = 1234567;
-const char boatName[32] = "Aida";
-boolean wifiConnected = false;          // Global wifi connection state
-
-unsigned int UDPPort = 5050;
-unsigned int TCPPort = 5051;
-
-IPAddress UDPremoteip;
-unsigned int UDPremoteport;
-
-const int rxPin = 12;                   // Serial receive Pin D6 = GPIO12
-const int txPin = 13;                   // Serial transmit Pin D7 = GPIO13
-
-int nmeaBaud = 9600;                    // Detected baud rate
-
-char nmeaBuffer[128];                   // NMEA byte/char buffer to hold a full collected nmea sentence max 82 chars..
-int nmeaBufferIndex = 0;
-int nmeaStatus = 0;                     // We are reading a nmea sentence $ until *xx 0=notreading,1=reading_complete
 
 //Enables reading the ESP8266 supply voltage
-ADC_MODE(ADC_VCC);                  
+ADC_MODE(ADC_VCC);
 
-//Start a configurable timer
+const char    compile_date[]  = __DATE__ " " __TIME__;
+
+char          ssid[MAXSTR]    = HOSTNAME;         // SSID and Hostname for device
+char          password[MAXSTR]= "admin";          // OTA password
+char          boatName[MAXSTR]= "Aida";
+unsigned int  boatMMSI        = 1234567;
+boolean       wifiConnected   = false;            // Global wifi connection state
+
+unsigned int  UDPPort         = 5050;
+unsigned int  TCPPort         = 5051;
+unsigned int  WEBPort         = 80;
+
+IPAddress     UDPremoteip;
+unsigned int  UDPremoteport;
+
+int           rxPin           = 20;                 // Serial receive Pin D1 = GPIO5 = ArduinoPIN 20
+int           txPin           = 19;                 // Serial transmit Pin D2 = GPIO4 = ArduinoPIN 19
+
+int           nmeaBaud        = 0;                  // Detected baud rate
+int           nmeaBaudDefault = 9600;               // Default baud rate
+
+char          nmeaBuffer[128];                      // NMEA byte/char buffer to hold a full collected nmea sentence max 82 chars..
+int           nmeaBufferIndex = 0;
+int           nmeaStatus      = 0;                  // We are reading a nmea sentence $ until *xx 0=notreading,1=reading_complete
+
+char gpsTimestamp_buffer[24]      = "1970-01-01T00:00:01.00";       // For json output.
+char currentTimestamp_buffer[24]  = "1970-01-01T00:00:01.00"; 
+                 
+// Start a configurable timer
 Metro timer = Metro(0); 
 
-//GPS nmea parser instance
+// GPS nmea parser instance
 TinyGPSPlus gps;
-TinyGPSCustom ais(gps, "AIVDM", 5); // !AIVDM sentence, 6th element
+TinyGPSCustom ais(gps, "AIVDM", 5);                   // Special AIS !AIVDM sentence, 6th element
 
-// Software serial actual NMEA sentences read
-SoftwareSerial nmeaSerial(txPin, rxPin, false, 256);      // tx,rx, invert, buffersize
+// Software serial actual NMEA sentences read   
+SoftwareSerial *nmeaSerial = NULL;                    // Pointer to hold the SoftwareSerial object         
 
 // TCP instance to let us send and receive packets over TCP
-WiFiServer nmeaTCPServer(TCPPort);
+WiFiServer nmeaTCPServer(TCPPort);                    //
+WiFiServer *nmeaTCPServer2 = NULL;
 WiFiClient nmeaTCPServerClients[MAX_SRV_CLIENTS];
 
 // UDP instance to let us send and receive packets over UDP
 WiFiUDP nmeaUDPServer;
 
 // Webserver instance
-ESP8266WebServer webServer(WEBPORT);
+ESP8266WebServer webServer(WEBPort);
+ESP8266WebServer *webServer2 = NULL;
   
-// put your setup code here, to run once:
+/*
+ Set up system and configurations
+ * Wifi
+ * Software Serial
+ * TCP and UDP
+ * Webserver
+*/
 void setup() {
   
   pinMode(LED, OUTPUT);   
@@ -109,18 +128,26 @@ void setup() {
   Serial.println(compile_date);
   Serial.printf("Sketch size: %u\n\r", ESP.getSketchSize());
   Serial.printf("Free size: %u\n\r", ESP.getFreeSketchSpace());
+  Serial.printf("TinyGPS++ %s\n\r", gps.libraryVersion() );
 
   // Setup SP filesystem
-  SPIFFS.begin();                                             //TODO : Check for error                                       
-  showSPIFFS();
+  SPIFFS.begin();                                               //TODO : Check for error                                       
+  //showSPIFFS();
 
-  //readConfig();
+  //Init logfile
+  log2file("#");
+  
+  //Read config from SPIFF file
+  readConfig("/config.txt");
 
-  // Auto detect baudrate
-  nmeaBaud = determineBaudRate(rxPin);                        // Try to detect BAUD on rxPIN
+  // Setup SoftwareSerialport
+  nmeaSerial = new SoftwareSerial(txPin, rxPin, false, 256);   // tx,rx, invert, buffersize
+  nmeaBaud = determineBaudRate(rxPin);                         // Try to detect BAUD on rxPIN
+  if(nmeaSerial)DEBUGPORT.println(F("SoftSerial init"));
+  nmeaSerial->begin(nmeaBaud ? nmeaBaud : nmeaBaudDefault);    // Start on detected baud or set to 9600
   DEBUGPORT.print("Detected Baudrate:"); DEBUGPORT.println(nmeaBaud);
-  nmeaSerial.begin(nmeaBaud?nmeaBaud:9600);                   // Start on detected baud or set to 9600
-  nmeaSerial.write("nmeaSerial started");                     // Debug output on softserial port
+  DEBUGPORT.print("Using    Baudrate:"); DEBUGPORT.println(nmeaBaud ? nmeaBaud : nmeaBaudDefault);
+  nmeaSerial->write("nmeaSerial started");                     // Debug output on softserial port
   
 #if OTA
   initializeOTA();
@@ -128,18 +155,17 @@ void setup() {
   
   // Initialise wifi connection 
   wifiConnected = initWifi(NORMAL_WIFI);     //Blocking until some WIFI is setup
-  DEBUGPORT.println("connected...yeey :)");
+  DEBUGPORT.println("*WM: connected...");
 
   // Initialise mDNS for WEB and NMEA TCP/UDP 
   initMDNS(ssid);
 
   if( initWebHandlers() ){
-    DEBUGPORT.print("Webserver started on port:"); DEBUGPORT.println(WEBPORT);  
+    DEBUGPORT.print(F("*WEB Server started on port:")); DEBUGPORT.println(WEBPort);  
   }
   else{
-    DEBUGPORT.print("Failed to start Webserver");
+    DEBUGPORT.print(F("*WEB Failed to start Webserver"));
   }
-
 
   //Setup TCP server
   nmeaTCPServer.begin();                    //TODO:<-- Check success
@@ -150,16 +176,17 @@ void setup() {
   nmeaUDPServer.begin(UDPPort);              //TODO:<-- Check success
   Serial.print("UDP server started on port:"); Serial.println(UDPPort);
 
-  Serial.print(F("Free Heap: "));
-  Serial.println(ESP.getFreeHeap());
-    
+  Serial.print(F("Free Heap: ")); Serial.println(ESP.getFreeHeap());
+
+Serial.println("$GPRMC,045103.000,A,3014.1984,N,09749.2872,W,0.67,161.46,030913,,,A*7C");
+  
   digitalWrite(LED, HIGH);                                 //Turn off led when setup is done
 } // End setup
 
-// Main loop
-//TODO: Check that wifi is still connected, webserver is running and both UDP/TCP is listening
-//Maybe use a timer (Ticker) to check every minute?
 
+// Main loop
+// TODO: Check that wifi is still connected, webserver is running and both UDP/TCP is listening
+// Maybe use a timer (Ticker) to check every minute?
 void loop() {
  
 #if OTA
@@ -171,35 +198,27 @@ void loop() {
 
   // Read from Serial and parse out NMEA messages into the Buffer
   // and send chars to nmea encoder
-  nmeaBufferIndex = readNMEASerial( nmeaBuffer, nmeaBufferIndex, &nmeaStatus);
-    
+  nmeaBufferIndex = readNMEASerial( nmeaBuffer, nmeaBufferIndex, nmeaStatus);
+
+  // Send out valid NMEA string to connected TCP and UDP clients, take care of incomming data  
   handleTCP(nmeaBuffer, nmeaStatus);
   handleUDP(nmeaBuffer, nmeaStatus);
 
-  //Use the string
+  // Use the string
   if ( nmeaStatus ){                                // We have a full string so use it now
     ledBlink(100);                                  // Start a 100ms blink
-    DEBUGPORT.print("\n\rSentense: "); DEBUGPORT.println(nmeaBuffer);
+    DEBUGPORT.print("\n\rNMEA Sentense: "); DEBUGPORT.println(nmeaBuffer);
     log2file(nmeaBuffer);                           // Safe the string to the /nmea.log file 
 
-    StaticJsonBuffer<500> jsonBuffer;
-    JsonObject &json = prepareResponse(jsonBuffer);
-    json.prettyPrintTo(DEBUGPORT);
+    DEBUGPORT.print("\n\rCurrent Time: ");DEBUGPORT.println(currentTimeToString());
 
-    //showParsedNmea();                                 //Print some parsed NMEA stats from encoder
-    //char buffer[256];
-    //json.printTo(buffer, sizeof(buffer));
-
-    if(timeStatus()!=timeSet)gpsSetTime();
-
-    timeToString(currentTimestamp_buffer, now());
-    DEBUGPORT.println(currentTimestamp_buffer);
-    DEBUGPORT.println(gps.time.age());
-    
-    nmeaStatus = 0;                                     // String consumed -> reset
+    nmeaStatus = 0;                                 // String consumed -> reset
   }
   
-  ledBlink(0);
+  showParsedNmea();                                 // Debug of gps data
+  if( timeStatus() != timeSet )gpsSetTime();        // Set system time if not set or if sync is needed
+      
+  ledBlink(0);                                      // Handle LED blinker
     
 } // End loop()
 
@@ -222,13 +241,46 @@ JsonObject& prepareResponse(JsonBuffer &jsonBuffer) {
   vessel["timestamp"] = gpsTimestamp_buffer;
 
   JsonObject &navigation = vessel.createNestedObject("navigation");
-  if ( gps.location.isUpdated() && gps.location.isValid() ){
+  
+  if ( gps.location.isValid() ){
     JsonObject &position = navigation.createNestedObject("position");
     position.set("longitude",gps.location.lng(),6);
     position.set("latitude",gps.location.lat(),6);
+    position.set("age",gps.location.age());
+  }
+
+  if (gps.speed.isValid()){
+    JsonObject &position = navigation.createNestedObject("speedThroughWater");
+    position.set("knots",gps.speed.knots(),6);
+    position.set("age",gps.speed.age());
+  }
+
+  if (gps.course.isValid()){
+    JsonObject &position = navigation.createNestedObject("courseOverGroundTrue");
+    position.set("degrees",gps.course.deg(),6);
+    position.set("age",gps.speed.age());
+  }
+
+  if (gps.temp.isValid()){
+    JsonObject &position = navigation.createNestedObject("waterTemp");
+    position.set("celcius",gps.temp.celcius(),6);
+    position.set("age",gps.temp.age());
   }
   
+  if (gps.dept.isValid()){
+    JsonObject &position = navigation.createNestedObject("deptBelowKeel");
+    position.set("meter",gps.dept.meters(),6);
+    position.set("age",gps.dept.age());
+  }
+
   return root;
+}
+
+void gpsSetTime(){
+  if( gps.time.isValid() && gps.date.isValid() ){
+    setTime(gps.time.hour(), gps.time.minute(), gps.time.second(), gps.date.day(), gps.date.month(), gps.date.year() );
+    adjustTime(gps.time.age()/1000);
+  }
 }
 
 int gpsTimeToString(char *buffer){
@@ -240,36 +292,33 @@ int gpsDateToString(char *buffer){
 }
 
 int timeToString(char *buffer, time_t t){
-  if(sizeof(buffer) > 20)return 0;
   return sprintf( buffer,"%4d-%02d-%02dT%02d:%02d:%02d", year(t), month(t), day(t), hour(t), minute(t), second(t) );
 }
 
-void gpsSetTime(){
-  if( gps.time.isValid() && gps.date.isValid() ){ //
-    setTime(gps.time.hour(), gps.time.minute(), gps.time.second(), gps.date.day(), gps.date.month(), gps.date.year() );
-    //adjustTime(gps.time.age()/1000);
-  }
-  
+char* currentTimeToString(){
+  timeToString( currentTimestamp_buffer, now() );
+  return currentTimestamp_buffer;
 }
+
 
 //--------------------------------------------------------
 
 /*
-  $xxMTW,20.33,C*21
-  $SDMTW,26.8,C*45
-  $SDDPT,3.6,0.0*52
-  $SDDBT,1330.5,f,0405.5,M,0221.6,F*2E
-  $WIMWV,214.8,R,0.1,K,A*28
+$xxMTW,20.33,C*21
+$SDMTW,26.8,C*45
+$SDDPT,3.6,0.0*52
+$SDDBT,1330.5,f,0405.5,M,0221.6,F*31
+$WIMWV,214.8,R,0.1,K,A*28
 
-  !AIVDM,1,1,,B,177KQJ5000G?tO`K>RA1wUbN0TKH,0*5C
+!AIVDM,1,1,,B,177KQJ5000G?tO`K>RA1wUbN0TKH,0*5C
   
-  $GPGGA,123519,4807.038,N,01131.000,E,1,08,0.9,545.4,M,46.9,M,,*47
-  $GPRMC,045103.000,A,3014.1984,N,09749.2872,W,0.67,161.46,030913,,,A*7C
-  $GPGGA,045104.000,3014.1985,N,09749.2873,W,1,09,1.2,211.6,M,-22.5,M,,0000*62
-  $GPRMC,045200.000,A,3014.3820,N,09748.9514,W,36.88,65.02,030913,,,A*77
-  $GPGGA,045201.000,3014.3864,N,09748.9411,W,1,10,1.2,200.8,M,-22.5,M,,0000*6C
-  $GPRMC,045251.000,A,3014.4275,N,09749.0626,W,0.51,217.94,030913,,,A*7D
-  $GPGGA,045252.000,3014.4273,N,09749.0628,W,1,09,1.3,206.9,M,-22.5,M,,0000*6F
+$GPGGA,123519,4807.038,N,01131.000,E,1,08,0.9,545.4,M,46.9,M,,*47
+$GPRMC,045103.000,A,3014.1984,N,09749.2872,W,0.67,161.46,030913,,,A*7C
+$GPGGA,045104.000,3014.1985,N,09749.2873,W,1,09,1.2,211.6,M,-22.5,M,,0000*62
+$GPRMC,045200.000,A,3014.3820,N,09748.9514,W,36.88,65.02,030913,,,A*77
+$GPGGA,045201.000,3014.3864,N,09748.9411,W,1,10,1.2,200.8,M,-22.5,M,,0000*6C
+$GPRMC,045251.000,A,3014.4275,N,09749.0626,W,0.51,217.94,030913,,,A*7D
+$GPGGA,045252.000,3014.4273,N,09749.0628,W,1,09,1.3,206.9,M,-22.5,M,,0000*6F
 */
 //--------------------------------------------------------
 void ledBlink(int start){
@@ -284,22 +333,22 @@ void ledBlink(int start){
   }  
 }
 
-int readNMEASerial( char *buffer, int index, int *status ){
+int readNMEASerial( char *buffer, int index, int &status ){
   char c;                                              // temp for incoming serial char
   if( NMEAPORT.available() ){                          // we have data in the UART buffer
 
     c = NMEAPORT.read();                               // read one char from the UART buffer
     DEBUGPORT.write(c);                                // Local echo of what we got
     gps.encode(c);                                     // Send to encoder
-
-    if (c == '$' || c == '!' || index && c != '\r'){    // Start char or started to read?
+     
+    if (c == '$' || c == '!' || index ){                // Start char or started to read? && c != '\n'
       buffer[index++] = c;                              // Fill the buffer with chars
-      *status = 0;
+      status = 0;
             
-      if (buffer[index-3]=='*'){                        // Have we read the * and the two chksum chars?
+      if (buffer[index-4]=='*'){                        // Have we read the * and the two chksum chars and newline should be -3?
         buffer[index] = '\0';                           // Terminate the string
         index = 0;                                      // Then stop adding chars to the buffer
-        *status = 1;                                     // Done with a string
+        status = 1;                                     // Done with a string
 
         DEBUGPORT.print(" chksum:");DEBUGPORT.printf(" %x", (unsigned char)calcNmeaChecksum(buffer) );
       }
@@ -309,7 +358,6 @@ int readNMEASerial( char *buffer, int index, int *status ){
     else {
       index=0;  
     }
-
   }                                                      // END serial available
   return index;
 }
@@ -327,7 +375,7 @@ boolean handleTCP(char *nmeaMessageBuffer, int nmeaStatus){
 // TCP Handling 
 //    
   if ( nmeaTCPServer.hasClient() ){                                             // Do we have ANY clients connected?
-    //DEBUGPORT.println("TCP: client connected");
+    //DEBUGPORT.println("*TCP client connected");
     ledBlink(250);
     for( uint8_t i = 0; i < MAX_SRV_CLIENTS; i++){                              // Loop over the client array
       if (!nmeaTCPServerClients[i] || !nmeaTCPServerClients[i].connected() ){   // Is the array spot taken or client no longer connected?
@@ -350,7 +398,7 @@ boolean handleTCP(char *nmeaMessageBuffer, int nmeaStatus){
       if (nmeaTCPServerClients[i] && nmeaTCPServerClients[i].connected()){         //Only worry about connected clients
         nmeaTCPServerClients[i].println(nmeaMessageBuffer);                        //Send the string to the client        
         delay(1);                                                                  //Helthy delay to finish the job
-        DEBUGPORT.print("TCP: NMEA sentence pushed to client#"); Serial.println(i);    //Log it on console         
+        DEBUGPORT.print("*TCP NMEA sentence pushed to client#"); Serial.println(i);    //Log it on console         
       }
     }
   }
@@ -404,9 +452,9 @@ int noBytes = nmeaUDPServer.parsePacket();
     nmeaUDPServer.endPacket(); //
   }
 
-
   if(nmeaStatus && UDPremoteip){                                                 //Do we have a full NMEA sentence and a receiver?
-    nmeaUDPServer.beginPacket(UDPremoteip, UDPremoteport);                       //nmeaUDPServer.beginPacketMulticast(IPAddress('239.0.0.36'), 5052, WiFi.localIP()); or broadcast .255
+    nmeaUDPServer.beginPacket(UDPremoteip, UDPremoteport);                       
+    //nmeaUDPServer.beginPacketMulticast(IPAddress('239.0.0.36'), 5052, WiFi.localIP()); or broadcast .255
     nmeaUDPServer.print(nmeaMessageBuffer);
     nmeaUDPServer.endPacket();
     Serial.println("NMEA String pushed to UDP client");                          //Log it on console  
@@ -416,10 +464,10 @@ int noBytes = nmeaUDPServer.parsePacket();
 }
 
 /*
-WiFiManager
-1. try connecting to last used wifi network, if fails try next
-2. try captive portal to configure new network, if fails try next (5 minutes timeout)
-3. Setup AP mode as last resort
+  WiFiManager
+  1. try connecting to last used wifi network, if fails try next
+  2. try captive portal to configure new network, if fails try next (5 minutes timeout)
+  3. Setup AP mode as last resort
 */
 boolean initWifi(boolean rst){
 
@@ -453,13 +501,15 @@ boolean initWifi(boolean rst){
     }
   }  
 
-  WiFi.printDiag(Serial);
+  //WiFi.printDiag(DEBUGPORT);
   return state;
 }  //End initWifi
 
-// function to return valid received baud rate
-// Note that the serial monitor has no 600 baud option and 300 baud
-// doesn't seem to work with version 22 hardware serial library
+/*
+ * function to return valid received baud rate
+ * Note that the serial monitor has no 600 baud option and 300 baud
+ * doesn't seem to work with version 22 hardware serial library
+*/
 long determineBaudRate(int recpin) {
   long baud, rate = 10000, x;
   for (int i = 0; i < 10; i++) {
@@ -502,17 +552,82 @@ void showSPIFFS(){
   DEBUGPORT.printf("\n");
 }
 
-bool initMDNS( const char *name ){
-  delay(5);
-  //Setup and Register mDNS
-  if ( MDNS.begin(name) ) {
-    Serial.print("*mDNS: Responder STARTED. Hostname -> "); Serial.println(name);
+/*
+ * Read a config.txt file in json format from SPIFF
+ * parse the key/values and update variables
+*/
+void readConfig( const char *filename ){
+  StaticJsonBuffer<400> jsonBuffer;
+  
+  File f = SPIFFS.open(filename, "r");
 
-    // Register the services
-    MDNS.addService("http", "tcp", WEBPORT);            // Web server - discomment if you need this
+  if (!f) {
+    DEBUGPORT.println(F("cfg* file open failed"));
+    return; 
+  } 
+  else{
+    JsonObject& root = jsonBuffer.parseObject(f);
+    
+    if (!root.success()) {
+      DEBUGPORT.println(F("cfg* parse config failed"));
+      return;
+    }
+  
+    //root.prettyPrintTo(DEBUGPORT);
+    
+    if( root.containsKey("tcpPort") )
+      TCPPort = root["tcpPort"];
+
+    if( root.containsKey("udpPort") )
+      UDPPort = root["udpPort"];
+        
+    if( root.containsKey("webPort") )
+      WEBPort = root["webPort"];
+
+    if( root.containsKey("txPin") )
+      txPin = root["txPin"];
+
+    if( root.containsKey("rxPin") )
+      rxPin = root["rxPin"];
+    
+    if( root.containsKey("hostname") ){
+      strncpy(ssid, root["hostname"], MAXSTR);
+    }
+    
+    if( root.containsKey("boatName") ){
+      strncpy(boatName, root["boatName"] , MAXSTR);
+    }
+
+    if( root.containsKey("boatMMSI") ){
+      boatMMSI  = root["boatMMSI"];
+    }
+
+    if( root.containsKey("otaPassword") ){
+      strncpy(password, root["otaPassword"], MAXSTR);
+    }
+    
+    if( root.containsKey("baudRate") ){
+      nmeaBaud = root["baudRate"];
+    }
+       
+  }
+  
+}
+
+/*
+ * Init discovery mDNS discoveryprotocol
+*/
+bool initMDNS( const char *hostname ){
+  delay(5);
+  // Setup and Register mDNS
+  if ( MDNS.begin(hostname) ) {
+    Serial.print("*mDNS: Responder STARTED. Hostname -> "); Serial.println(hostname);
+
+    // Register services
+    MDNS.addService("http", "tcp", WEBPort);            // Web server - discomment if you need this
     MDNS.addService("nmea", "tcp", TCPPort);            // NMEA server
     MDNS.addService("nmea", "udp", UDPPort);            // NMEA server
-    MDNS.addService("signalk-http", "tcp", WEBPORT);    // Signal K server  _signalk-http._tcp
+    MDNS.addService("signalk-http", "tcp", WEBPort);    // Signal K server  _signalk-http._tcp
     
   }
   else {
@@ -520,10 +635,28 @@ bool initMDNS( const char *name ){
   }  
 }
 
+/*
+ * Debug output from NMEA and AIS messages
+*/
 bool showParsedNmea(){
-
-  if( ais.isUpdated() ){
-    decodeAIS( ais.value() );
+  aisdata aisData; 
+  
+  if( ais.isUpdated() && ais.isValid() ){
+    if( decodeAIS( ais.value(), aisData ) ){
+      Serial.print(F("*AIS msg type="));Serial.println(aisData.type);
+      Serial.print(F("*AIS MMSI="));Serial.println(aisData.mmsi);
+      Serial.print(F("*AIS Navigation status="));Serial.println(aisData.navigationStatus);
+      Serial.print(F("*AIS Turnrate="));Serial.println(aisData.RateOfTurn);
+      Serial.print(F("*AIS SOG="));Serial.println(aisData.sog);
+      Serial.print(F("*AIS Longitude="));Serial.println(aisData.longitude,6);
+      Serial.print(F("*AIS Latitude="));Serial.println(aisData.latitude,6);
+      Serial.print(F("*AIS COG="));Serial.println(aisData.cog);
+      Serial.print(F("*AIS True heading="));Serial.println(aisData.trueHeading); 
+      Serial.print(F("*AIS UTC Second="));Serial.println(aisData.UTCSeconds); 
+    }
+    else{
+      Serial.print( F("*AIS Error: Could not decode message") );
+    }
   }
 
   if ( gps.location.isUpdated() && gps.location.isValid() ){
@@ -578,20 +711,23 @@ bool showParsedNmea(){
     Serial.print(F("Dept Meters="));
     Serial.print( gps.dept.meters() ); 
   }
-
-  //Serial.print("CHARS="); Serial.println( gps.charsProcessed() );                        
-  //Serial.print("SENTENCES="); Serial.println( gps.sentencesWithFix() );
-  //Serial.print("CSUM ERR="); Serial.println( gps.failedChecksum() );
+/*
+  Serial.print("CHARS="); Serial.println( gps.charsProcessed() );                        
+  Serial.print("SENTENCES="); Serial.println( gps.sentencesWithFix() );
+  Serial.print("CSUM ERR="); Serial.println( gps.failedChecksum() );
+*/
 }
 
-//Log complete NMEA messages to SPIFFS
+/*
+ * Log complete nmea messages to file log
+*/
 int log2file( const char *log ){
   int size;
   
   File f = SPIFFS.open("/nmea.log", "a");
   
   if (!f) {
-    DEBUGPORT.println("Failed to create/open file for logging");
+    DEBUGPORT.println("*LOG Failed to create/open file for logging");
   } 
   else {   
     f.println(log);
@@ -602,11 +738,15 @@ int log2file( const char *log ){
 
   if(size > MAX_LOG_FILE_SIZE){
     SPIFFS.remove("/nmea.log");
-    DEBUGPORT.println("Rotating log file");  
+    DEBUGPORT.println(F("*LOG Rotating log file"));  
   }
 
   return size;
 }
+
+/*
+ * OTA Update of firmware functions
+*/
 #if OTA
 void initializeOTA() {
     ArduinoOTA.setHostname(ssid);                               // Use ssid as hostname
@@ -636,4 +776,3 @@ void initializeOTA() {
     DEBUGPORT.println("*OTA: Enabled");
 }
 #endif
-

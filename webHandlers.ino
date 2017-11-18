@@ -1,20 +1,19 @@
 /*
- Intit WEb handlders for both NMEA and SPIFF Browser
+ * Intit Web handlders for different paths/URLs
 */
-
 File fsUploadFile;
 
+// Setup Web handlers
 int initWebHandlers(){
-  
-  //Setup Web handlers
-  webServer.on("/", [](){                             //Handle root + index.htm
+
+  //Handle root + index.htm
+  webServer.on("/", [](){                             
     if( !handleFileRead("/") )
       webServer.send(404, "text/plain", "FileNotFound");
   });
   webServer.on("/nmea", handleNMEA);
   webServer.on("/log", handleLog);
-  webServer.on("/api", HTTP_GET,handleAPI);
-  webServer.on("/signalk", HTTP_GET,handleAPI);
+  webServer.on("/api", HTTP_GET, handleAPI);
   webServer.on("/reset", handleReset);
 
   //Setup FS Browser handlers
@@ -27,6 +26,7 @@ int initWebHandlers(){
   //first callback is called after the request has ended with all parsed arguments
   //second callback handles file uploads at that location
   webServer.on("/edit", HTTP_POST, [](){ webServer.send(200, "text/plain", ""); }, handleFileUpload);
+  
   //get heap status, analog input value and all GPIO statuses in one json call
   webServer.on("/all", HTTP_GET, [](){
     String json = "{";
@@ -37,6 +37,7 @@ int initWebHandlers(){
     webServer.send(200, "text/json", json);
     json = String();
   });
+  
   //called when the url is not defined here
   //use it to load content from SPIFFS
   webServer.onNotFound([](){
@@ -47,16 +48,18 @@ int initWebHandlers(){
   webServer.begin();                         //TODO:<-- Check success
   return true;
 }
-/*
- NMEA WEB handlers
-*/
-  /*
-  for ( uint8_t i = 0; i < webServer.args(); i++ ) {
-    page += " " + webServer.argName ( i ) + ": " + webServer.arg ( i ) + "\n";
-  }
-  */
 
-//Webserver NMEA handlder
+/* DEBUG WEBSERVER
+for ( uint8_t i = 0; i < webServer.args(); i++ ) {
+  page += " " + webServer.argName ( i ) + ": " + webServer.arg ( i ) + "\n";
+}
+*/
+
+/*
+ * Handler functions
+*/
+
+// Webserver NMEA handlder
 void handleNMEA() {
   String page = FPSTR(HTTP_HEAD);
   page.replace("{v}", "NMEA2WIFI");
@@ -66,7 +69,7 @@ void handleNMEA() {
   page += FPSTR(HTTP_HEAD_END);
   page += F("<dl>");
   page += F("<dt>GPS status</dt>");
-  //page += gps.sentencesWithFix();
+  page += gps.sentencesWithFix();
   
   page += F("<dd>");
   page += F("Lng/Lat:");
@@ -78,7 +81,7 @@ void handleNMEA() {
   page = String();  //release 
 }
 
-//Webserver NMEA message log handlder
+// Webserver NMEA message log handlder
 void handleLog() {
   String page = FPSTR(HTTP_HEAD);
   page.replace("{v}", "NMEA2WIFI");
@@ -92,7 +95,7 @@ void handleLog() {
   
   File f = SPIFFS.open("/nmea.log", "r");
   if (!f) {
-    page += F("file open failed");
+    page += F("*LOG/WEB file open failed");
   } 
   else {
     while(f.available()) {
@@ -109,27 +112,16 @@ void handleLog() {
   page = String();  //release 
 }
 
-//Webservice API handlder
+// Webservice API handlder
 void handleAPI() {
-  String page = "{";
-  page += "\"heap\":"+String( ESP.getFreeHeap() );
-  page += ", \"vcc\":"+String( ESP.getVcc() );
-  page += ", \"ip\":"+ String( WiFi.localIP().toString() ) +" " + WiFi.softAPIP().toString();
-  page += ", \"tcp-port\":"+String( UDPPort );
-  page += ", \"udp-port\":"+String( TCPPort );
-    page += ", \"nmea\":{";
-    page += " \"sentences\":"+String( gps.sentencesWithFix() ); 
-    page += ", \"chars\":"+String( gps.charsProcessed() );
-    page += ", \"lon\":"+String( gps.location.lng() );
-    page += ", \"lat\":"+String( gps.location.lat() );
-    page += ", \"age\":"+String( gps.location.age() );
-    page += "}";
-  page += "}";
-  webServer.send(200, "text/json", page );
-  page = String();  //release
+  char buffer[500];
+  StaticJsonBuffer<500> jsonBuffer;
+  JsonObject &json = prepareResponse(jsonBuffer);
+  json.printTo(buffer, 500);
+  webServer.send(200, "text/json", buffer );
 }
 
-//Webserver reset handlder
+// Webserver reset handlder
 void handleReset() {
   String page = FPSTR(HTTP_HEAD);
   page.replace("{v}", "Info");
@@ -148,10 +140,9 @@ void handleReset() {
   delay(2000);
 }
 
-/* SPIFF Browser functions */
-
+// SPIFF Browser functions
 bool handleFileRead(String path){
-  DEBUGPORT.println("handleFileRead: " + path);
+  //DEBUGPORT.println("*WEB handleFileRead: " + path);
   if(path.endsWith("/")) path += "index.htm";
   String contentType = getContentType(path);
   String pathWithGz = path + ".gz";
@@ -166,31 +157,33 @@ bool handleFileRead(String path){
   return false;
 }
 
+// Upload handler
+// for file in `ls -A1`; do curl -F "file=@$PWD/$file" esp8266fs.local/edit; done 
 void handleFileUpload(){
   if(webServer.uri() != "/edit") return;
   HTTPUpload& upload = webServer.upload();
   if(upload.status == UPLOAD_FILE_START){
     String filename = upload.filename;
     if(!filename.startsWith("/")) filename = "/"+filename;
-    DEBUGPORT.print("handleFileUpload Name: "); DEBUGPORT.println(filename);
+    DEBUGPORT.print("*WEB handleFileUpload Name: "); DEBUGPORT.println(filename);
     fsUploadFile = SPIFFS.open(filename, "w");
     filename = String();
   } else if(upload.status == UPLOAD_FILE_WRITE){
-    //DEBUGPORT.print("handleFileUpload Data: "); DEBUGPORT.println(upload.currentSize);
     if(fsUploadFile)
       fsUploadFile.write(upload.buf, upload.currentSize);
   } else if(upload.status == UPLOAD_FILE_END){
     if(fsUploadFile)
       fsUploadFile.close();
-    DEBUGPORT.print("handleFileUpload Size: "); DEBUGPORT.println(upload.totalSize);
+    DEBUGPORT.print("*WEB handleFileUpload Size: "); DEBUGPORT.println(upload.totalSize);
   }
 }
 
+// Delete a file from SPIFF
 void handleFileDelete(){
   if(webServer.args() == 0) 
     return webServer.send(500, "text/plain", "BAD ARGS");
   String path = webServer.arg(0);
-  DEBUGPORT.println("handleFileDelete: " + path);
+  DEBUGPORT.println("*WEB handleFileDelete: " + path);
   if(path == "/")
     return webServer.send(500, "text/plain", "BAD PATH");
   if(!SPIFFS.exists(path))
@@ -200,11 +193,12 @@ void handleFileDelete(){
   path = String();
 }
 
+// Create a new file if it does not exist
 void handleFileCreate(){
   if(webServer.args() == 0)
     return webServer.send(500, "text/plain", "BAD ARGS");
   String path = webServer.arg(0);
-  DEBUGPORT.println("handleFileCreate: " + path);
+  DEBUGPORT.println("*WEB handleFileCreate: " + path);
   if(path == "/")
     return webServer.send(500, "text/plain", "BAD PATH");
   if(SPIFFS.exists(path))
@@ -218,11 +212,12 @@ void handleFileCreate(){
   path = String();
 }
 
+// Directory of files in SPIFF
 void handleFileList() {
   if(!webServer.hasArg("dir")) {webServer.send(500, "text/plain", "BAD ARGS"); return;}
   
   String path = webServer.arg("dir");
-  DEBUGPORT.println("handleFileList: " + path);
+  DEBUGPORT.println("*WEB handleFileList: " + path);
   Dir dir = SPIFFS.openDir(path);
   path = String();
 
@@ -244,10 +239,10 @@ void handleFileList() {
 }
 
 /*
- Helper functions
+ * Helper functions
 */
 
-//format bytes
+// Format size string
 String formatBytes(size_t bytes){
   if (bytes < 1024){
     return String(bytes)+"B";
@@ -260,6 +255,7 @@ String formatBytes(size_t bytes){
   }
 }
 
+// Return type of content string from filename
 String getContentType(String filename){
   if(webServer.hasArg("download")) return "application/octet-stream";
   else if(filename.endsWith(".htm")) return "text/html";
@@ -277,27 +273,3 @@ String getContentType(String filename){
   return "text/plain";
 }
 
-
-/*
-// Read all the lines of the reply from server and print them to Serial
-// TODO Move all Serial read stuff to its own function handleSerialRead(), return String and string status
-int handleSerialString(){
-
-  while(nmeaSerial.available()){
-    nmeaString = nmeaSerial.readStringUntil('\r\n');    // Blocking when something in the buffer (or until 1000ms timeout)
-                               
-    if( nmeaString.startsWith("$") ){
-      Serial.print("NMEA:");
-      nmeaStatus=1;
-  
-      for(int i=0; i< nmeaString.length();i++){
-        gps.encode(nmeaString.charAt(i));
-      }
-     
-    }
-    Serial.println(nmeaString);
-    return true;
-  }
-  return false;
-}
-*/

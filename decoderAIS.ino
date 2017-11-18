@@ -1,77 +1,24 @@
 /*
-!AIVDM,1,1,,B,177KQJ5000G?tO`K>RA1wUbN0TKH,0*5C
-
-Message sent (UTC) : 03:54:15
-MMSI               : 477553000
-Latitude           : 47.582833°
-Longitude          : -122.345832°
-Speed              : 0.0 knots
-Heading            : 181°
-Course over ground : 51°
-Rate of turn       : 0°/min
-Navigational status: 5
-
-!AIVDM,1,1,,A,1000vV@P00Idw98ATMk00?wj0<0n,0*0F
-
-# of ships in range: 54
-MMSI               : 000016025
-Latitude           : 30.705407°
-Longitude          : -88.039618°
-Speed              : 0.0 knots
-Heading            : 511°
-Course over ground : 0°
-Rate of turn       : -9999°/min
-Navigational status: 0
+* Decode AIS data
 */
 
-String getValue(String data, char separator, int index){
-  int found = 0;
-  int strIndex[] = { 0, -1 };
-  int maxIndex = data.length() - 1;
 
-  for (int i = 0; i <= maxIndex && found <= index; i++) {
-      if (data.charAt(i) == separator || i == maxIndex) {
-          found++;
-          strIndex[0] = strIndex[1] + 1;
-          strIndex[1] = (i == maxIndex) ? i+1 : i;
-      }
-  }
-  return found > index ? data.substring(strIndex[0], strIndex[1]) : "";
-}
-  
-int bin_to_int(String temp_s){
-  int x,i=0;
-  for (x=0; x<temp_s.length(); x++) {
-    i=i + ((temp_s[x]-48) * (1<<(temp_s.length()-x-1)));
-  }
-  return i;
-}
-
-double bin_to_I4(String temp_s){
-  char temp_c[30] = "";
-
-  int sign = temp_s[0]=='1'?-1:1;  
-  temp_s.substring(1).toCharArray(temp_c, temp_s.length() );
-  if(sign==-1) //flip for 1-complement
-    for(int i=0;i<temp_s.length()-1;i++)temp_c[i] = temp_c[i]=='1'?'0':'1';
-  double i4 = ( bin_to_int( temp_c )+1) * sign;
-  return i4;
-}
-
+/*
+// Takes a full NMEA String and try to find AIS payload
 int AISdecoder(String msg){
   
-  //find !AIVDM or !AIVDO and Trim string
+  // find !AIVDM or !AIVDO and Trim string
   String ais_string=msg.substring(msg.indexOf("!AIVD"),msg.indexOf("*")+3);
-  Serial.print("*AIS message string=");Serial.println(ais_string);
 
-  // find 6bit ais encoded string, 5th element
+  // find 6bit ais encoded string, 5th element is payload
   String six_bit=getValue(ais_string, ',' ,5);
-  Serial.print("*AIS six_bit string=");Serial.println(six_bit);
-  
-  return decodeAIS(six_bit);
-}
 
-int decodeAIS(String six_bit) {
+  aisdata a;
+  return decodeAIS(six_bit, a);
+}
+*/
+
+int decodeAIS(String six_bit, aisdata &aisData ) {
   
   // six bit ascii table. (gpsd.berlios.de/AIVDM)
   String six_bit_table[120];
@@ -146,74 +93,128 @@ int decodeAIS(String six_bit) {
   for (int x=0; x<six_bit.length(); x++) {
     ais_binary += six_bit_table[ six_bit[x] ];
   }
-  Serial.print("*AIS binary string=");Serial.println(ais_binary);
-  Serial.print("*AIS string length=");Serial.println(ais_binary.length());
-  Serial.println("*AIS --------------");
 
   String temp_s="";
 
   temp_s=ais_binary.substring(0,6);
-  int ais_message_type=bin_to_int(temp_s);
-  Serial.print("*AIS msg type=");Serial.println(ais_message_type);
-  if( ais_message_type>3 )return -1;  //Can only decode type 1,2,3
+  aisData.type=bin_to_int(temp_s);
+  if( aisData.type>3 )return 0;  //Can only decode type 1,2,3
     
   temp_s=ais_binary.substring(6,6+2);
   int ais_repeat_indicator=bin_to_int(temp_s);
-  Serial.print("*AIS Repeat indicator=");Serial.println(ais_repeat_indicator);
     
   temp_s=ais_binary.substring(8,8+30);
-  int ais_mmsi=bin_to_int(temp_s);
-  Serial.print("*AIS MMSI=");Serial.println(ais_mmsi);
-  
+  aisData.mmsi=bin_to_int(temp_s);
+    
   temp_s=ais_binary.substring(38,38+4);
-  int ais_navigation_status=bin_to_int(temp_s);
-  Serial.print("*AIS Navigation status=");Serial.println(ais_navigation_status);
+  aisData.navigationStatus=bin_to_int(temp_s);
   
   temp_s=ais_binary.substring(42,42+8);
-  int ais_rate_of_turn=bin_to_int(temp_s);
-  Serial.print("*AIS Turnrate=");Serial.println(ais_rate_of_turn);
+  aisData.RateOfTurn=bin_to_int(temp_s);
   
   temp_s=ais_binary.substring(50,50+10);
-  int ais_speed_over_ground=bin_to_int(temp_s)/10;
-  Serial.print("*AIS SOG=");Serial.println(ais_speed_over_ground);
-  
-  String ais_position_accuracy=ais_binary.substring(60,60+1);
-  Serial.print("*AIS Position accuracy=");Serial.println(ais_position_accuracy);
-  
-  double ais_lon = bin_to_I4( ais_binary.substring(61,61+28) )/60.0/10000;
-  Serial.print("*AIS Longitude=");Serial.println(ais_lon,6);
+  aisData.sog=bin_to_int(temp_s)/10;
 
-  double ais_lat = bin_to_I4( ais_binary.substring(89,89+27) )/60.0/10000;
-  Serial.print("*AIS Latitude=");Serial.println(ais_lat,6);
+  String ais_position_accuracy=ais_binary.substring(60,60+1);
+  
+  aisData.longitude = bin_to_I4( ais_binary.substring(61,61+28) )/60.0/10000;
+  aisData.latitude = bin_to_I4( ais_binary.substring(89,89+27) )/60.0/10000;
 
   temp_s=ais_binary.substring(116,116+12);
   //3600==N/A
-  int ais_course_over_ground=bin_to_int(temp_s)/10;
-  Serial.print("*AIS COG=");Serial.println(ais_course_over_ground);   
-
+  aisData.cog=bin_to_int(temp_s)/10;
+   
   temp_s=ais_binary.substring(128,128+9);
   //511 ==N/A
-  int ais_true_heading=bin_to_int(temp_s);
-  Serial.print("*AIS True heading=");Serial.println(ais_true_heading); 
+  aisData.trueHeading=bin_to_int(temp_s);
 
   temp_s=ais_binary.substring(137,137+6);
-  int ais_utc_seconds=bin_to_int(temp_s);
-  Serial.print("*AIS UTC Second=");Serial.println(ais_utc_seconds); 
+  aisData.UTCSeconds=bin_to_int(temp_s);
 
+  /*
+  Serial.print("*AIS binary string=");Serial.println(ais_binary);
+  Serial.print("*AIS string length=");Serial.println(ais_binary.length());
+  Serial.println("*AIS --------------");
+  Serial.print("*AIS msg type=");Serial.println(aisData.type);
+  Serial.print("*AIS Repeat indicator=");Serial.println(ais_repeat_indicator);
+  Serial.print("*AIS MMSI=");Serial.println(aisData.mmsi);
+  Serial.print("*AIS Navigation status=");Serial.println(aisData.navigationStatus);
+  Serial.print("*AIS Turnrate=");Serial.println(aisData.RateOfTurn);
+  Serial.print("*AIS SOG=");Serial.println(aisData.sog);
+  Serial.print("*AIS Position accuracy=");Serial.println(ais_position_accuracy);
+  Serial.print("*AIS Longitude=");Serial.println(aisData.longitude,6);
+  Serial.print("*AIS Latitude=");Serial.println(aisData.latitude,6);
+  Serial.print("*AIS COG=");Serial.println(aisData.cog);
+  Serial.print("*AIS True heading=");Serial.println(aisData.trueHeading); 
+  Serial.print("*AIS UTC Second=");Serial.println(aisData.UTCSeconds); 
+  */
+  return 1;
 }
 
-struct AISdata{
-    int mmsi;
-    int navigationStatus;
-    int RateOfTurn;
-    int sog;
-    int cog;
-    int trueHeading;
-    int UTCSeconds;
-    double latitude;
-    double longitude;
-      
-};
+// Get the Index'th Value from a delimter string using Separator
+String getValue(String data, char separator, int index){
+  int found = 0;
+  int strIndex[] = { 0, -1 };
+  int maxIndex = data.length() - 1;
+
+  for (int i = 0; i <= maxIndex && found <= index; i++) {
+      if (data.charAt(i) == separator || i == maxIndex) {
+          found++;
+          strIndex[0] = strIndex[1] + 1;
+          strIndex[1] = (i == maxIndex) ? i+1 : i;
+      }
+  }
+  return found > index ? data.substring(strIndex[0], strIndex[1]) : "";
+}
+
+// Convert a string with a ascii 0 and 1 to a base-10 number
+int bin_to_int(String temp_s){
+  int x,i=0;
+  for (x=0; x<temp_s.length(); x++) {
+    i=i + ((temp_s[x]-48) * (1<<(temp_s.length()-x-1)));
+  }
+  return i;
+}
+
+// Convert a string with a ascii 0 and 1 to a signed number (lon/lat)
+double bin_to_I4(String temp_s){
+  char temp_c[30] = "";
+
+  int sign = temp_s[0]=='1'?-1:1;  
+  temp_s.substring(1).toCharArray(temp_c, temp_s.length() );
+  if(sign==-1) //flip for 1-complement
+    for(int i=0;i<temp_s.length()-1;i++)temp_c[i] = temp_c[i]=='1'?'0':'1';
+  double i4 = ( bin_to_int( temp_c )+1) * sign;
+  return i4;
+}
+
+
+/*
+!AIVDM,1,1,,B,177KQJ5000G?tO`K>RA1wUbN0TKH,0*5C
+
+Message sent (UTC) : 03:54:15
+MMSI               : 477553000
+Latitude           : 47.582833°
+Longitude          : -122.345832°
+Speed              : 0.0 knots
+Heading            : 181°
+Course over ground : 51°
+Rate of turn       : 0°/min
+Navigational status: 5
+
+!AIVDM,1,1,,A,1000vV@P00Idw98ATMk00?wj0<0n,0*0F
+
+# of ships in range: 54
+MMSI               : 000016025
+Latitude           : 30.705407°
+Longitude          : -88.039618°
+Speed              : 0.0 knots
+Heading            : 511°
+Course over ground : 0°
+Rate of turn       : -9999°/min
+Navigational status: 0
+*/
+
 
 /*
 
@@ -413,9 +414,4 @@ xxVDM AIS VHF-datalänkmeddelande
 }
 
 */
-
-
-
-
-
 
