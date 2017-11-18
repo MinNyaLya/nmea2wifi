@@ -70,7 +70,59 @@
 			}
 			
 		</script>
+
 		
+		<script type="text/javascript">
+			
+		// helper function: log message to screen
+		function log(msg) {
+		  document.getElementById('log').textContent += msg + '\n';
+		}
+
+		// setup websocket with callbacks
+		var ws = new WebSocket('ws://nmea2wifi.local:5050');
+
+		ws.onopen = function() {
+		  log('CONNECT');
+		};
+		ws.onclose = function() {
+		  log('DISCONNECT');
+		};
+		ws.onmessage = function(event) {
+		  log('MESSAGE: ' + event.data);
+		};
+
+		/*
+function loadScript(src, f) {
+  var head = document.getElementsByTagName("head")[0];
+  var script = document.createElement("script");
+  script.src = src;
+  var done = false;
+  script.onload = script.onreadystatechange = function() { 
+    // attach to both events for cross browser finish detection:
+    if ( !done && (!this.readyState ||
+      this.readyState == "loaded" || this.readyState == "complete") ) {
+      done = true;
+      if (typeof f == 'function') f();
+      // cleans up a little memory:
+      script.onload = script.onreadystatechange = null;
+      head.removeChild(script);
+    }
+  };
+  head.appendChild(script);
+}
+
+// example:
+loadScript('/some-other-script.js', function() { 
+   alert('finished loading');
+   finishSetup();
+ });
+
+
+
+		*/
+		</script>
+
 		
 	</head>
 	
@@ -80,7 +132,10 @@
 		<span id="networkGaugeContainer"></span>
 		<span id="testGaugeContainer"></span>
 		http://bl.ocks.org/d3noob/b3ff6ae1c120eea654b5<br>
-		http://bl.ocks.org/tomerd/1499279
+		http://bl.ocks.org/tomerd/1499279<br>
+		https://gionkunz.github.io/chartist-js/index.html<br>
+		http://www.chartjs.org/
+		<pre id="log"></pre>
 	</body>
 	
 </html>

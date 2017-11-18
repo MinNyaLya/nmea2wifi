@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta http-equiv="Content-type" content="text/html; charset=utf-8">
+  <title>Config parameters</title>
+  <script type="text/javascript">
+
+    function loadValues(){
+      var xh = new XMLHttpRequest();
+      xh.onreadystatechange = function(){
+        if (xh.readyState == 4){
+          if(xh.status == 200) {
+            var res = JSON.parse(xh.responseText);
+            var div_id = document.getElementById("params");
+            for(var param in res){
+              div_id.innerHTML += param + ":" + res[param] + "<br>";
+            }
+          } 
+        }
+      };
+      xh.open("GET", "/config.txt", true);
+      xh.send(null);
+    };
+    
+    function onBodyLoad(){
+      loadValues();
+    };
+
+
+
+  </script>
+</head>
+<body id="index" style="margin:10; padding:5;" onload="onBodyLoad()">
+Config parameters in config.txt
+<pre id="params"></pre>
+</body>
+</html>

@@ -1,2 +1,12 @@
-hello
-this is a test: 9600
+{
+	"tcpPort":6050,
+	"udpPort":6051,
+	"webPort":81,
+	"txPin":14,
+	"rxPin":15,
+	"hostname":"nmea2wifi",
+	"otaPassword":"admin",
+	"boatName":"s/y Aida",
+	"boatMMSI":1122334,
+	"baudRate":9600		
+}
