@@ -12,3 +12,5 @@ Combination of libraries
 * ESP8266mDNS             // https://github.com/esp8266/Arduino/tree/master/libraries/ESP8266mDNS
 * TimeLib                 // http://playground.arduino.cc/Code/Time
 
+* chartjs                 // http://www.chartjs.org/
+
