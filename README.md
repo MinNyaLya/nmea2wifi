@@ -6,8 +6,9 @@ Combination of libraries
 
 * TinyGPS++               // https://github.com/mikalhart/TinyGPS https://github.com/mikalhart/TinyGPSPlus
 * ArduinoJson             // https://arduinojson.org
-* ESP8266WiFi             // https://github.com/esp8266/Arduino
 * WiFiManager             // https://github.com/tzapu/WiFiManager
+* ESP8266WiFi             // https://github.com/esp8266/Arduino
+* ESP8266WebServer        // https://github.com/esp8266/Arduino/tree/master/libraries/ESP8266WebServer
 * ESP8266mDNS             // https://github.com/esp8266/Arduino/tree/master/libraries/ESP8266mDNS
 * TimeLib                 // http://playground.arduino.cc/Code/Time
-* ESP8266WebServer        // https://github.com/esp8266/Arduino/tree/master/libraries/ESP8266WebServer
+
