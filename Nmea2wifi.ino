@@ -21,14 +21,14 @@ https://github.com/jcable/nmea-link
 #include <DNSServer.h>
 #include <ESP8266WebServer.h>
 #include <WiFiManager.h>            // https://github.com/tzapu/WiFiManager
-//mDNS Dont seem to work in soft AP Mode
+// mDNS Dont seem to work in soft AP Mode
 #include <ESP8266mDNS.h>            // https://github.com/esp8266/Arduino/tree/master/libraries/ESP8266mDNS
 
 // NMEA sentence parser
 #include "TinyGPS++.h"              // https://github.com/mikalhart/TinyGPS https://github.com/mikalhart/TinyGPSPlus
 
 // json builder
-#include <ArduinoJson.h>
+#include <ArduinoJson.h>            // https://github.com/bblanchon/ArduinoJson
 
 // Time lib
 #include <TimeLib.h>                // http://playground.arduino.cc/Code/Time
@@ -37,7 +37,7 @@ https://github.com/jcable/nmea-link
 #include <SoftwareSerial.h>
 
 // Timer for LED blinks
-#include <Metro.h>
+#include <Metro.h>                  // https://github.com/thomasfredericks/Metro-Arduino-Wiring
 
 // OTA stuff
 #include <ArduinoOTA.h>
@@ -120,7 +120,7 @@ ESP8266WebServer *webServer2 = NULL;
 void setup() {
   
   pinMode(LED, OUTPUT);   
-  digitalWrite(LED, LOW);                                       //Turn on led in setup mode
+  digitalWrite(LED, LOW);                                       // Turn on led in setup mode
   
   Serial.begin(115200);
 
@@ -135,7 +135,7 @@ void setup() {
   //showSPIFFS();
 
   //Init logfile
-  log2file("#");
+  log2file("#Boot");
   
   //Read config from SPIFF file
   readConfig("/config.txt");
@@ -160,6 +160,7 @@ void setup() {
   // Initialise mDNS for WEB and NMEA TCP/UDP 
   initMDNS(ssid);
 
+  // Start the webserver
   if( initWebHandlers() ){
     DEBUGPORT.print(F("*WEB Server started on port:")); DEBUGPORT.println(WEBPort);  
   }
@@ -167,19 +168,17 @@ void setup() {
     DEBUGPORT.print(F("*WEB Failed to start Webserver"));
   }
 
-  //Setup TCP server
+  // Setup TCP server
   nmeaTCPServer.begin();                    //TODO:<-- Check success
   nmeaTCPServer.setNoDelay(true);
   Serial.print("TCP server started on port:"); Serial.println(TCPPort);
-  
-  //Setup UDP server
+
+  // Setup UDP server
   nmeaUDPServer.begin(UDPPort);              //TODO:<-- Check success
   Serial.print("UDP server started on port:"); Serial.println(UDPPort);
 
   Serial.print(F("Free Heap: ")); Serial.println(ESP.getFreeHeap());
 
-Serial.println("$GPRMC,045103.000,A,3014.1984,N,09749.2872,W,0.67,161.46,030913,,,A*7C");
-  
   digitalWrite(LED, HIGH);                                 //Turn off led when setup is done
 } // End setup
 
@@ -210,7 +209,7 @@ void loop() {
     DEBUGPORT.print("\n\rNMEA Sentense: "); DEBUGPORT.println(nmeaBuffer);
     log2file(nmeaBuffer);                           // Safe the string to the /nmea.log file 
 
-    DEBUGPORT.print("\n\rCurrent Time: ");DEBUGPORT.println(currentTimeToString());
+    DEBUGPORT.print("\n\rCurrent Time: "); DEBUGPORT.println(currentTimeToString());
 
     nmeaStatus = 0;                                 // String consumed -> reset
   }
@@ -218,7 +217,7 @@ void loop() {
   showParsedNmea();                                 // Debug of gps data
   if( timeStatus() != timeSet )gpsSetTime();        // Set system time if not set or if sync is needed
       
-  ledBlink(0);                                      // Handle LED blinker
+  ledBlink(0);                                      // Handle LED blinker in the main loop
     
 } // End loop()
 
@@ -319,13 +318,14 @@ $GPRMC,045200.000,A,3014.3820,N,09748.9514,W,36.88,65.02,030913,,,A*77
 $GPGGA,045201.000,3014.3864,N,09748.9411,W,1,10,1.2,200.8,M,-22.5,M,,0000*6C
 $GPRMC,045251.000,A,3014.4275,N,09749.0626,W,0.51,217.94,030913,,,A*7D
 $GPGGA,045252.000,3014.4273,N,09749.0628,W,1,09,1.3,206.9,M,-22.5,M,,0000*6F
+$GPRMC,045103.000,A,3014.1984,N,09749.2872,W,0.67,161.46,030913,,,A*7C
 */
 //--------------------------------------------------------
 void ledBlink(int start){
-  if(start){
+  if(start){                                          // start timer with a initial value ex: ledBlink(200);
     timer.interval(start);
     timer.reset();
-    digitalWrite(LED,LOW);
+    digitalWrite(LED,LOW);                            // turn on the led
   }
   if(timer.check()){
     digitalWrite(LED,HIGH);
