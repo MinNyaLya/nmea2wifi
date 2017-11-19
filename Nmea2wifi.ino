@@ -353,7 +353,7 @@ int readNMEASerial( char *buffer, int index, int &status ){
         DEBUGPORT.print(" chksum:");DEBUGPORT.printf(" %x", (unsigned char)calcNmeaChecksum(buffer) );
       }
       
-      if ( index > NMEA_MAX_LENGTH )index=0;             // Have we passed max, the startover         
+      if ( index > NMEA_MAX_LENGTH )index=0;             // Have we passed max, then startover         
     }
     else {
       index=0;  
@@ -363,9 +363,9 @@ int readNMEASerial( char *buffer, int index, int &status ){
 }
 
 int calcNmeaChecksum(char *nmeaMessageBuffer){
-  int parity = 0, i=1; //skip the $
-  while(nmeaMessageBuffer[i]!='*'){
-      parity ^= nmeaMessageBuffer[i++];
+  int parity = 0, i=1;                                    // skip the "$""
+  while(nmeaMessageBuffer[i]!='*'){                       // all chars until "*"
+      parity ^= nmeaMessageBuffer[i++];                   // EOR
   }
   return parity;
 }
@@ -542,6 +542,10 @@ long determineBaudRate(int recpin) {
   return baud;
 }
 
+/*
+ * Root file list SPIFF
+ * print to debug
+*/
 void showSPIFFS(){
   Dir dir = SPIFFS.openDir("/");
   while (dir.next()) {    
