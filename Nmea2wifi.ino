@@ -222,7 +222,63 @@ void loop() {
     
 } // End loop()
 
-JsonObject& prepareResponse(JsonBuffer &jsonBuffer) {
+/*
+* Create a JSON string from current data to write to datalog log
+* {timestamp:"asd",postition:}
+*/
+JsonObject& prepareLog(JsonBuffer &jsonBuffer) {
+
+  JsonObject &root = jsonBuffer.createObject();
+ 
+  //TODO : zero Timestamp buffer before ewuser
+  if (gps.date.isValid()){
+      gpsDateToString(gpsTimestamp_buffer);
+      gpsTimestamp_buffer[10]='T';           //Overwrite null char ;-)
+  }
+  if(gps.time.isValid()){
+      gpsTimeToString(&gpsTimestamp_buffer[11]);
+  }
+  root["timestamp"] = gpsTimestamp_buffer;
+ 
+  if ( gps.location.isValid() ){
+    JsonObject &position = root.createNestedObject("position");
+    position.set("longitude",gps.location.lng(),6);
+    position.set("latitude",gps.location.lat(),6);
+    position.set("age",gps.location.age());
+  }
+
+  if (gps.speed.isValid()){
+    JsonObject &speed = root.createNestedObject("speedThroughWater");
+    speed.set("knots",gps.speed.knots(),6);
+    speed.set("age",gps.speed.age());
+  }
+
+  if (gps.course.isValid()){
+    JsonObject &cog = root.createNestedObject("courseOverGroundTrue");
+    cog.set("degrees",gps.course.deg(),6);
+    cog.set("age",gps.speed.age());
+  }
+
+  if (gps.temp.isValid()){
+    JsonObject &temp = root.createNestedObject("waterTemp");
+    temp.set("celcius",gps.temp.celcius(),6);
+    temp.set("age",gps.temp.age());
+  }
+  
+  if (gps.dept.isValid()){
+    JsonObject &dept = root.createNestedObject("deptBelowKeel");
+    dept.set("meter",gps.dept.meters(),6);
+    dept.set("age",gps.dept.age());
+  }
+
+  return root;
+}
+
+
+/*
+* Signal K representation of current NMEA and AIS data
+*/
+JsonObject& prepareAPI(JsonBuffer &jsonBuffer) {
 
   JsonObject &root = jsonBuffer.createObject();
 
@@ -711,11 +767,10 @@ bool showParsedNmea(){
     Serial.print(F("Dept Meters="));
     Serial.print( gps.dept.meters() ); 
   }
-/*
+
   Serial.print("CHARS="); Serial.println( gps.charsProcessed() );                        
   Serial.print("SENTENCES="); Serial.println( gps.sentencesWithFix() );
   Serial.print("CSUM ERR="); Serial.println( gps.failedChecksum() );
-*/
 }
 
 /*
