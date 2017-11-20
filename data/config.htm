@@ -3,6 +3,7 @@
 <head>
   <meta http-equiv="Content-type" content="text/html; charset=utf-8">
   <title>Config parameters</title>
+  <link href="css/style.css" rel="stylesheet">
   <script type="text/javascript">
 
     function loadValues(){
@@ -13,12 +14,16 @@
             var res = JSON.parse(xh.responseText);
             var div_id = document.getElementById("params");
             for(var param in res){
-              div_id.innerHTML += param + ":" + res[param] + "<br>";
+              //div_id.innerHTML += param + ":" + res[param] + "<br>";
+
+              var did = document.getElementById(param);
+              if(did)did.value=res[param];
             }
+
           } 
         }
       };
-      xh.open("GET", "/config.txt", true);
+      xh.open("GET", "http://192.168.1.212/config.txt", true);
       xh.send(null);
     };
     
@@ -26,12 +31,71 @@
       loadValues();
     };
 
-
-
   </script>
 </head>
-<body id="index" style="margin:10; padding:5;" onload="onBodyLoad()">
-Config parameters in config.txt
+<body id="index" onload="onBodyLoad()">
+  <div class="wrapper">
+    <!-- Form -->
+    <form id="nmea-form" action="/" method="post">
+
+    <div class="input-row">
+      <div class="input-lable">TCP Port</div>
+      <input id="tcpPort" placeholder="..." type="text" tabindex="1" class="enjoy-css">
+    </div>
+
+    <div class="input-row">
+      <div class="input-lable">UDP Port</div>
+      <input id="udpPort" placeholder="..." type="text" tabindex="1" class="enjoy-css">
+    </div>
+
+    <div class="input-row">
+      <div class="input-lable">Web Port</div>
+      <input id="webPort" placeholder="..." type="text" tabindex="1" class="enjoy-css">
+    </div>
+
+    <div class="input-row">
+      <div class="input-lable">Web Port</div>
+      <input id="txPin" placeholder="..." type="text" tabindex="1" class="enjoy-css">
+    </div>
+
+    <div class="input-row">
+      <div class="input-lable">Web Port</div>
+      <input id="rxPin" placeholder="..." type="text" tabindex="1" class="enjoy-css">
+    </div>
+
+    <div class="input-row">
+      <div class="input-lable">Web Port</div>
+      <input id="hostname" placeholder="..." type="text" tabindex="1" class="enjoy-css">
+    </div>
+
+    <div class="input-row">
+      <div class="input-lable">Web Port</div>
+      <input id="otaPassword" placeholder="..." type="text" tabindex="1" class="enjoy-css">
+    </div>    
+    <div class="input-row">
+      <div class="input-lable">Web Port</div>
+      <input id="boatName" placeholder="..." type="text" tabindex="1" class="enjoy-css">
+    </div>
+
+    <div class="input-row">
+      <div class="input-lable">Web Port</div>
+      <input id="boatMMSI" placeholder="..." type="text" tabindex="1" class="enjoy-css">
+    </div>
+
+    <div class="input-row">
+      <div class="input-lable">Web Port</div>
+      <input id="baudRate" placeholder="..." type="text" tabindex="1" class="enjoy-css">
+    </div>
+
+    <div class="input-row">
+      <input id="submit" placeholder="Save" type="submit" class="">
+    </div>
+
+  </form>
+  <!-- /Form -->
+  </div>
+
 <pre id="params"></pre>
+
 </body>
 </html>
