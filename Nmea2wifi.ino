@@ -760,7 +760,7 @@ void initializeOTA() {
     // ArduinoOTA.setPort(8266);
 
     ArduinoOTA.onStart([]() {
-        DEBUGPORT.println("* OTA: Start");
+        DEBUGPORT.println("*OTA: Start");
     });
     ArduinoOTA.onEnd([]() {
         DEBUGPORT.println("\n*OTA: End");
