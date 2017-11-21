@@ -36,7 +36,7 @@
           } 
         }
       };
-      xh.open("GET", "http://192.168.1.212/nmea.log", true);
+      xh.open("GET", "/nmea.log", true);
       xh.send(null);
     };
 
@@ -48,10 +48,8 @@
           addData(myLineChart, item.millis, item.speed);
         });
     };
-    
 
-
-    x = setInterval(function(){ 
+     x = setInterval(function(){ 
         if(jsonArray.length){
           clearInterval(x);
           initChart();

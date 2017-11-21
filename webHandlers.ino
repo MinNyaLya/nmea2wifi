@@ -11,9 +11,8 @@ int initWebHandlers(){
     if( !handleFileRead("/") )
       webServer.send(404, "text/plain", "FileNotFound");
   });
-  webServer.on("/nmea", handleNMEA);
-  webServer.on("/log", handleLog);
   webServer.on("/api", HTTP_GET, handleAPI);
+  webServer.on("/sys", HTTP_GET, handleSys);
   webServer.on("/reset", handleReset);
 
   //Setup FS Browser handlers
@@ -27,16 +26,7 @@ int initWebHandlers(){
   //second callback handles file uploads at that location
   webServer.on("/edit", HTTP_POST, [](){ webServer.send(200, "text/plain", ""); }, handleFileUpload);
   
-  //get heap status, analog input value and all GPIO statuses in one json call
-  webServer.on("/all", HTTP_GET, [](){
-    String json = "{";
-    json += "\"heap\":"+String(ESP.getFreeHeap());
-    json += ", \"analog\":"+String(analogRead(A0));
-    json += ", \"gpio\":"+String((uint32_t)(((GPI | GPO) & 0xFFFF) | ((GP16I & 0x01) << 16)));
-    json += "}";
-    webServer.send(200, "text/json", json);
-    json = String();
-  });
+
   
   //called when the url is not defined here
   //use it to load content from SPIFFS
@@ -59,57 +49,17 @@ for ( uint8_t i = 0; i < webServer.args(); i++ ) {
  * Handler functions
 */
 
-// Webserver NMEA handlder
-void handleNMEA() {
-  String page = FPSTR(HTTP_HEAD);
-  page.replace("{v}", "NMEA2WIFI");
-  page += FPSTR(HTTP_SCRIPT);
-  page += FPSTR(HTTP_STYLE);
-  //page += _customHeadElement;
-  page += FPSTR(HTTP_HEAD_END);
-  page += F("<dl>");
-  page += F("<dt>GPS status</dt>");
-  page += gps.sentencesWithFix();
-  
-  page += F("<dd>");
-  page += F("Lng/Lat:");
-  page += F("</dd>");      
+//   //get heap status, analog input value and all GPIO statuses in one json call
+void handleSys() {
+  char buffer[100];
+  StaticJsonBuffer<100> jsonBuffer;
 
-  page += F("</dl>");
-  page += FPSTR(HTTP_END);
-  webServer.send(200, "text/html", page); 
-  page = String();  //release 
-}
-
-// Webserver NMEA message log handlder
-void handleLog() {
-  String page = FPSTR(HTTP_HEAD);
-  page.replace("{v}", "NMEA2WIFI");
-  page += FPSTR(HTTP_SCRIPT);
-  page += FPSTR(HTTP_STYLE);
-  //page += _customHeadElement;
-  page += FPSTR(HTTP_HEAD_END);
-  page += F("<dl>");
-  page += F("<dt>NMEA messages</dt>");
-  //page += gps.sentencesWithFix();
-  
-  File f = SPIFFS.open("/nmea.log", "r");
-  if (!f) {
-    page += F("*LOG/WEB file open failed");
-  } 
-  else {
-    while(f.available()) {
-      page += F("<dd>");
-      page += f.readStringUntil('\n');
-      page += F("</dd>");      
-    }    
-  }
-  f.close();
-  
-  page += F("</dl>");
-  page += FPSTR(HTTP_END);
-  webServer.send(200, "text/html", page); 
-  page = String();  //release 
+  JsonObject &root = jsonBuffer.createObject();
+  root["heap"] = ESP.getFreeHeap();
+  root["analog"] = analogRead(A0);
+  root["gpio"] = (uint32_t)(((GPI | GPO) & 0xFFFF) | ((GP16I & 0x01) << 16));
+  root.printTo(buffer, 100);
+  webServer.send(200, "text/json", buffer );
 }
 
 // Webservice API handlder

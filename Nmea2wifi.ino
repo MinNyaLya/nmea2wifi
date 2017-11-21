@@ -240,6 +240,11 @@ void loop() {
 	 
 } // End loop()
 
+int log2mem(const char *msg) {
+
+	
+}
+
 /*
 * Create a JSON string from current data to write to datalog log
 * {timestamp:"asd",postition:}
