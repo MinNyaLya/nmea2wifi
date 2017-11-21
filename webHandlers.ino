@@ -116,8 +116,7 @@ void handleLog() {
 void handleAPI() {
   char buffer[500];
   StaticJsonBuffer<500> jsonBuffer;
-  //JsonObject &json = prepareAPI(jsonBuffer);
-  JsonObject &json = prepareLog(jsonBuffer);
+  JsonObject &json = prepareAPI(jsonBuffer);
   json.printTo(buffer, 500);
   webServer.send(200, "text/json", buffer );
 }

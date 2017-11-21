@@ -60,34 +60,34 @@ https://github.com/jcable/nmea-link
 //Enables reading the ESP8266 supply voltage
 ADC_MODE(ADC_VCC);
 
-const char    compile_date[]  = __DATE__ " " __TIME__;
+const char		compile_date[]  = __DATE__ " " __TIME__;
 
-char          ssid[MAXSTR]    = HOSTNAME;         // SSID and Hostname for device
-char          password[MAXSTR]= "admin";          // OTA password
-char          boatName[MAXSTR]= "Aida";
-unsigned int  boatMMSI        = 1234567;
-boolean       wifiConnected   = false;            // Global wifi connection state
+char				ssid[MAXSTR]    = HOSTNAME;         // SSID and Hostname for device
+char				password[MAXSTR]= "admin";          // OTA password
+char				boatName[MAXSTR]= "Aida";
+unsigned int	boatMMSI        = 1234567;
+boolean			wifiConnected   = false;            // Global wifi connection state
 
-unsigned int  UDPPort         = 5050;
-unsigned int  TCPPort         = 5051;
-unsigned int  WEBPort         = 80;
+unsigned int	UDPPort         = 5050;
+unsigned int	TCPPort         = 5051;
+unsigned int	WEBPort         = 80;
 
-IPAddress     UDPremoteip;
-unsigned int  UDPremoteport;
+IPAddress		UDPremoteip;
+unsigned int	UDPremoteport;
 
-int           rxPin           = 20;                 // Serial receive Pin D1 = GPIO5 = ArduinoPIN 20
-int           txPin           = 19;                 // Serial transmit Pin D2 = GPIO4 = ArduinoPIN 19
+int				rxPin           = 20;                 // Serial receive Pin D1 = GPIO5 = ArduinoPIN 20
+int				txPin           = 19;                 // Serial transmit Pin D2 = GPIO4 = ArduinoPIN 19
 
-int           nmeaBaud        = 0;                  // Detected baud rate
-int           nmeaBaudDefault = 9600;               // Default baud rate
+int				nmeaBaud        = 0;                  // Detected baud rate
+int				nmeaBaudDefault = 9600;               // Default baud rate
 
-char          nmeaBuffer[128];                      // NMEA byte/char buffer to hold a full collected nmea sentence max 82 chars..
-int           nmeaBufferIndex = 0;
-int           nmeaStatus      = 0;                  // We are reading a nmea sentence $ until *xx 0=notreading,1=reading_complete
+char				nmeaBuffer[128];                      // NMEA byte/char buffer to hold a full collected nmea sentence max 82 chars..
+int				nmeaBufferIndex = 0;
+int				nmeaStatus      = 0;                  // We are reading a nmea sentence $ until *xx 0=notreading,1=reading_complete
 
-char gpsTimestamp_buffer[24]      = "1970-01-01T00:00:01.00";       // For json output.
-char currentTimestamp_buffer[24]  = "1970-01-01T00:00:01.00"; 
-                 
+char				gpsTimestamp_buffer[24]      = "1970-01-01T00:00:01.00";       // For json output.
+char				currentTimestamp_buffer[24]  = "1970-01-01T00:00:01.00"; 
+					  
 // Start a configurable timer
 Metro timer = Metro(0); 
 
@@ -111,167 +111,173 @@ ESP8266WebServer webServer(WEBPort);
 ESP8266WebServer *webServer2 = NULL;
   
 /*
- Set up system and configurations
- * Wifi
- * Software Serial
- * TCP and UDP
- * Webserver
+* Set up system and configurations
+* SPIFF (Flash file system)
+* Wifi
+* Software Serial
+* OTA
+* TCP and UDP
+* Webserver
 */
 void setup() {
+
+	pinMode(LED, OUTPUT);   
+	digitalWrite(LED, LOW);                                       //Turn on led in setup mode
   
-  pinMode(LED, OUTPUT);   
-  digitalWrite(LED, LOW);                                       //Turn on led in setup mode
-  
-  Serial.begin(115200);
+	Serial.begin(115200);
 
-  Serial.println("");
-  Serial.println(compile_date);
-  Serial.printf("Sketch size: %u\n\r", ESP.getSketchSize());
-  Serial.printf("Free size: %u\n\r", ESP.getFreeSketchSpace());
-  Serial.printf("TinyGPS++ %s\n\r", gps.libraryVersion() );
+	Serial.println("");
+	Serial.println(compile_date);
+	Serial.printf("Sketch size: %u\n\r", ESP.getSketchSize());
+	Serial.printf("Free size: %u\n\r", ESP.getFreeSketchSpace());
+	Serial.printf("TinyGPS++ %s\n\r", gps.libraryVersion() );
 
-  // Setup SP filesystem
-  SPIFFS.begin();                                               //TODO : Check for error                                       
-  //showSPIFFS();
+	// Setup SP filesystem
+	SPIFFS.begin();                                               //TODO : Check for error                                       
+	//showSPIFFS();
 
-  //Init logfile
-  log2file("#");
-  
-  //Read config from SPIFF file
-  readConfig("/config.txt");
+	//Init logfile
+	log2file("# bootup");
 
-  // Setup SoftwareSerialport
-  nmeaSerial = new SoftwareSerial(txPin, rxPin, false, 256);   // tx,rx, invert, buffersize
-  nmeaBaud = determineBaudRate(rxPin);                         // Try to detect BAUD on rxPIN
-  if(nmeaSerial)DEBUGPORT.println(F("SoftSerial init"));
-  nmeaSerial->begin(nmeaBaud ? nmeaBaud : nmeaBaudDefault);    // Start on detected baud or set to 9600
-  DEBUGPORT.print("Detected Baudrate:"); DEBUGPORT.println(nmeaBaud);
-  DEBUGPORT.print("Using    Baudrate:"); DEBUGPORT.println(nmeaBaud ? nmeaBaud : nmeaBaudDefault);
-  nmeaSerial->write("nmeaSerial started");                     // Debug output on softserial port
+	//Read config from SPIFF file
+	readConfig("/config.txt");
+
+	// Setup SoftwareSerialport
+	nmeaSerial = new SoftwareSerial(txPin, rxPin, false, 256);   // tx,rx, invert, buffersize
+	nmeaBaud = determineBaudRate(rxPin);                         // Try to detect BAUD on rxPIN
+	if(nmeaSerial)DEBUGPORT.println(F("SoftSerial init"));
+	nmeaSerial->begin(nmeaBaud ? nmeaBaud : nmeaBaudDefault);    // Start on detected baud or set to 9600
+	DEBUGPORT.print("Detected Baudrate:"); DEBUGPORT.println(nmeaBaud);
+	DEBUGPORT.print("Using    Baudrate:"); DEBUGPORT.println(nmeaBaud ? nmeaBaud : nmeaBaudDefault);
+	nmeaSerial->write("nmeaSerial started");                     // Debug output on softserial port
   
 #if OTA
-  initializeOTA();
+	initializeOTA();
 #endif
   
-  // Initialise wifi connection 
-  wifiConnected = initWifi(NORMAL_WIFI);     //Blocking until some WIFI is setup
-  DEBUGPORT.println("*WM: connected...");
+	// Initialise wifi connection 
+	wifiConnected = initWifi(NORMAL_WIFI);     //Blocking until some WIFI is setup
+	DEBUGPORT.println("*WM: connected...");
 
   // Initialise mDNS for WEB and NMEA TCP/UDP 
   initMDNS(ssid);
 
   if( initWebHandlers() ){
-    DEBUGPORT.print(F("*WEB Server started on port:")); DEBUGPORT.println(WEBPort);  
+	 DEBUGPORT.print(F("*WEB Server started on port:")); DEBUGPORT.println(WEBPort);  
   }
   else{
-    DEBUGPORT.print(F("*WEB Failed to start Webserver"));
+	 DEBUGPORT.print(F("*WEB Failed to start Webserver"));
   }
 
-  //Setup TCP server
-  nmeaTCPServer.begin();                    //TODO:<-- Check success
-  nmeaTCPServer.setNoDelay(true);
-  Serial.print("TCP server started on port:"); Serial.println(TCPPort);
+	//Setup TCP server
+	nmeaTCPServer.begin();                    //TODO:<-- Check success
+	nmeaTCPServer.setNoDelay(true);
+	Serial.print("TCP server started on port:"); Serial.println(TCPPort);
   
-  //Setup UDP server
-  nmeaUDPServer.begin(UDPPort);              //TODO:<-- Check success
-  Serial.print("UDP server started on port:"); Serial.println(UDPPort);
+	//Setup UDP server
+	nmeaUDPServer.begin(UDPPort);              //TODO:<-- Check success
+	Serial.print(F("UDP server started on port:")); Serial.println(UDPPort);
 
-  Serial.print(F("Free Heap: ")); Serial.println(ESP.getFreeHeap());
+	Serial.print(F("Free Heap: ")); Serial.println(ESP.getFreeHeap());
 
-Serial.println("$GPRMC,045103.000,A,3014.1984,N,09749.2872,W,0.67,161.46,030913,,,A*7C");
-  
-  digitalWrite(LED, HIGH);                                 //Turn off led when setup is done
+	digitalWrite(LED, HIGH);                                 //Turn off led when setup is done
 } // End setup
 
-
-// Main loop
-// TODO: Check that wifi is still connected, webserver is running and both UDP/TCP is listening
-// Maybe use a timer (Ticker) to check every minute?
+/*
+* Main loop
+* =========
+* Handle processes : OTA upgrade, Webserver, TCP & UDP connections
+* Log captured NMEA sentences to plain log file on SPIFF
+* Log decoded NMEA to JSON file on SPIFF
+*
+* TODO: Add decoded NMEA to memeory log
+* TODO: Check that wifi is still connected, webserver is running and both UDP/TCP is listening 
+* Maybe use a timer (Ticker) to check every minute?
+*/
 void loop() {
- 
+
 #if OTA
-    ArduinoOTA.handle();                              // take care of OTA updates 
+	ArduinoOTA.handle();                              // take care of OTA updates 
 #endif
 
-  // Take care of incoming web requests
-  webServer.handleClient();      
+	// Take care of incoming web requests
+	webServer.handleClient();      
 
-  // Read from Serial and parse out NMEA messages into the Buffer
-  // and send chars to nmea encoder
-  nmeaBufferIndex = readNMEASerial( nmeaBuffer, nmeaBufferIndex, nmeaStatus);
+	// Read from Serial and parse out NMEA messages into the Buffer
+	// and send chars to nmea encoder
+	nmeaBufferIndex = readNMEASerial( nmeaBuffer, nmeaBufferIndex, nmeaStatus);
 
-  // Send out valid NMEA string to connected TCP and UDP clients, take care of incomming data  
-  handleTCP(nmeaBuffer, nmeaStatus);
-  handleUDP(nmeaBuffer, nmeaStatus);
+	// Send out valid NMEA string to connected TCP and UDP clients, take care of incomming data  
+	handleTCP(nmeaBuffer, nmeaStatus);
+	handleUDP(nmeaBuffer, nmeaStatus);
 
-  // Use the string
-  if ( nmeaStatus ){                                // We have a full string so use it now
-    ledBlink(100);                                  // Start a 100ms blink
-    DEBUGPORT.print("\n\rNMEA Sentense: "); DEBUGPORT.println(nmeaBuffer);
-    log2file(nmeaBuffer);                           // Safe the string to the /nmea.log file 
+	// Use the string
+	if ( nmeaStatus ){                                // We have a full string so use it now
+		ledBlink(100);                                  // Start a 100ms blink
+		//DEBUGPORT.print("\n\rNMEA Sentense: "); DEBUGPORT.println(nmeaBuffer);
 
-    DEBUGPORT.print("\n\rCurrent Time: ");DEBUGPORT.println(currentTimeToString());
+		log2file(nmeaBuffer);                           // Save the string to the /nmea.log file 
 
-    nmeaStatus = 0;                                 // String consumed -> reset
-  }
-  
-  showParsedNmea();                                 // Debug of gps data
-  if( timeStatus() != timeSet )gpsSetTime();        // Set system time if not set or if sync is needed
-      
-  ledBlink(0);                                      // Handle LED blinker
-    
+		StaticJsonBuffer<200> jsonBuffer;
+		JsonObject &json = nmeaToJSON(jsonBuffer);
+		json.printTo(DEBUG);										// Log to file and memory log
+		DEBUGPORT.println(jsonBuffer.size());				// Show used buffer size
+
+		DEBUGPORT.print("\n\rCurrent Time: "); DEBUGPORT.println(currentTimeToString());
+		showParsedNmea();                                // Debug of gps data
+
+		nmeaStatus = 0;                                 // String consumed -> reset
+	}
+
+	if(timeStatus() == timeNotSet)gpsSetTime();        // Set system time if not set or if sync is needed
+		
+	ledBlink(0);                                      // Handle LED blinker
+	 
 } // End loop()
 
 /*
 * Create a JSON string from current data to write to datalog log
 * {timestamp:"asd",postition:}
 */
-JsonObject& prepareLog(JsonBuffer &jsonBuffer) {
+JsonObject& nmeaToJSON(JsonBuffer &jsonBuffer) {
 
-  JsonObject &root = jsonBuffer.createObject();
- 
-  //TODO : zero Timestamp buffer before ewuser
-  if (gps.date.isValid()){
-      gpsDateToString(gpsTimestamp_buffer);
-      gpsTimestamp_buffer[10]='T';           //Overwrite null char ;-)
-  }
-  if(gps.time.isValid()){
-      gpsTimeToString(&gpsTimestamp_buffer[11]);
-  }
-  root["timestamp"] = gpsTimestamp_buffer;
- 
-  if ( gps.location.isValid() ){
-    JsonObject &position = root.createNestedObject("position");
-    position.set("longitude",gps.location.lng(),6);
-    position.set("latitude",gps.location.lat(),6);
-    position.set("age",gps.location.age());
-  }
+ 	JsonObject &root = jsonBuffer.createObject();
 
-  if (gps.speed.isValid()){
-    JsonObject &speed = root.createNestedObject("speedThroughWater");
-    speed.set("knots",gps.speed.knots(),6);
-    speed.set("age",gps.speed.age());
-  }
+	//TODO : zero Timestamp buffer before ewuser
+	if (gps.date.isValid()){
+		gpsDateToString(gpsTimestamp_buffer);
+		gpsTimestamp_buffer[10]='T';           //Overwrite null char ;-)
+	}
+	if (gps.time.isValid()){
+		gpsTimeToString(&gpsTimestamp_buffer[11]);
+	}
+	root["gpstime"] = gpsTimestamp_buffer;
+	currentTimeToString();                    // Update time
+	root["currenttime"] = currentTimestamp_buffer;
 
-  if (gps.course.isValid()){
-    JsonObject &cog = root.createNestedObject("courseOverGroundTrue");
-    cog.set("degrees",gps.course.deg(),6);
-    cog.set("age",gps.speed.age());
-  }
+	if ( gps.location.isUpdated() && gps.location.isValid() ){
+		JsonArray &position = root.createNestedArray("position");
+		position.add(gps.location.lng());
+		position.add(gps.location.lat());
+	}
 
-  if (gps.temp.isValid()){
-    JsonObject &temp = root.createNestedObject("waterTemp");
-    temp.set("celcius",gps.temp.celcius(),6);
-    temp.set("age",gps.temp.age());
-  }
-  
-  if (gps.dept.isValid()){
-    JsonObject &dept = root.createNestedObject("deptBelowKeel");
-    dept.set("meter",gps.dept.meters(),6);
-    dept.set("age",gps.dept.age());
-  }
+	if (gps.speed.isUpdated() && gps.speed.isValid()){
+		root["speed"] = gps.speed.knots();
+	}
 
-  return root;
+	if (gps.course.isUpdated() && gps.course.isValid()){
+		root["cog"] = gps.course.deg();
+	}
+
+	if (gps.temp.isUpdated() && gps.temp.isValid()){
+		root["temp"] = gps.temp.celcius();
+	}
+
+	if (gps.dept.isUpdated() && gps.dept.isValid()){
+		root["dept"] = gps.dept.meters();
+	}
+
+	return root;
 }
 
 
@@ -288,54 +294,54 @@ JsonObject& prepareAPI(JsonBuffer &jsonBuffer) {
   vessel["name"] = boatName;  
   
   if (gps.date.isValid()){
-      gpsDateToString(gpsTimestamp_buffer);
-      gpsTimestamp_buffer[10]='T';           //Overwrite null char ;-)
+		gpsDateToString(gpsTimestamp_buffer);
+		gpsTimestamp_buffer[10]='T';           //Overwrite null char ;-)
   }
   if(gps.time.isValid()){
-      gpsTimeToString(&gpsTimestamp_buffer[11]);
+		gpsTimeToString(&gpsTimestamp_buffer[11]);
   }
   vessel["timestamp"] = gpsTimestamp_buffer;
 
   JsonObject &navigation = vessel.createNestedObject("navigation");
   
   if ( gps.location.isValid() ){
-    JsonObject &position = navigation.createNestedObject("position");
-    position.set("longitude",gps.location.lng(),6);
-    position.set("latitude",gps.location.lat(),6);
-    position.set("age",gps.location.age());
+	 JsonObject &position = navigation.createNestedObject("position");
+	 position.set("longitude",gps.location.lng(),6);
+	 position.set("latitude",gps.location.lat(),6);
+	 position.set("age",gps.location.age());
   }
 
   if (gps.speed.isValid()){
-    JsonObject &position = navigation.createNestedObject("speedThroughWater");
-    position.set("knots",gps.speed.knots(),6);
-    position.set("age",gps.speed.age());
+	 JsonObject &position = navigation.createNestedObject("speedThroughWater");
+	 position.set("knots",gps.speed.knots(),6);
+	 position.set("age",gps.speed.age());
   }
 
   if (gps.course.isValid()){
-    JsonObject &position = navigation.createNestedObject("courseOverGroundTrue");
-    position.set("degrees",gps.course.deg(),6);
-    position.set("age",gps.speed.age());
+	 JsonObject &position = navigation.createNestedObject("courseOverGroundTrue");
+	 position.set("degrees",gps.course.deg(),6);
+	 position.set("age",gps.speed.age());
   }
 
   if (gps.temp.isValid()){
-    JsonObject &position = navigation.createNestedObject("waterTemp");
-    position.set("celcius",gps.temp.celcius(),6);
-    position.set("age",gps.temp.age());
+	 JsonObject &position = navigation.createNestedObject("waterTemp");
+	 position.set("celcius",gps.temp.celcius(),6);
+	 position.set("age",gps.temp.age());
   }
   
   if (gps.dept.isValid()){
-    JsonObject &position = navigation.createNestedObject("deptBelowKeel");
-    position.set("meter",gps.dept.meters(),6);
-    position.set("age",gps.dept.age());
+	 JsonObject &position = navigation.createNestedObject("deptBelowKeel");
+	 position.set("meter",gps.dept.meters(),6);
+	 position.set("age",gps.dept.age());
   }
 
   return root;
 }
 
 void gpsSetTime(){
-  if( gps.time.isValid() && gps.date.isValid() ){
-    setTime(gps.time.hour(), gps.time.minute(), gps.time.second(), gps.date.day(), gps.date.month(), gps.date.year() );
-    adjustTime(gps.time.age()/1000);
+  if( gps.time.isValid() && gps.date.isValid() ){   //TODO : Needs to separate setting Time & Date
+	 setTime(gps.time.hour(), gps.time.minute(), gps.time.second(), gps.date.day(), gps.date.month(), gps.date.year() );
+	 adjustTime(gps.time.age()/1000);
   }
 }
 
@@ -379,13 +385,13 @@ $GPGGA,045252.000,3014.4273,N,09749.0628,W,1,09,1.3,206.9,M,-22.5,M,,0000*6F
 //--------------------------------------------------------
 void ledBlink(int start){
   if(start){
-    timer.interval(start);
-    timer.reset();
-    digitalWrite(LED,LOW);
+	 timer.interval(start);
+	 timer.reset();
+	 digitalWrite(LED,LOW);
   }
   if(timer.check()){
-    digitalWrite(LED,HIGH);
-    timer.interval(0);
+	 digitalWrite(LED,HIGH);
+	 timer.interval(0);
   }  
 }
 
@@ -393,27 +399,27 @@ int readNMEASerial( char *buffer, int index, int &status ){
   char c;                                              // temp for incoming serial char
   if( NMEAPORT.available() ){                          // we have data in the UART buffer
 
-    c = NMEAPORT.read();                               // read one char from the UART buffer
-    DEBUGPORT.write(c);                                // Local echo of what we got
-    gps.encode(c);                                     // Send to encoder
-     
-    if (c == '$' || c == '!' || index ){                // Start char or started to read? && c != '\n'
-      buffer[index++] = c;                              // Fill the buffer with chars
-      status = 0;
-            
-      if (buffer[index-4]=='*'){                        // Have we read the * and the two chksum chars and newline should be -3?
-        buffer[index] = '\0';                           // Terminate the string
-        index = 0;                                      // Then stop adding chars to the buffer
-        status = 1;                                     // Done with a string
+	 c = NMEAPORT.read();                               // read one char from the UART buffer
+	 DEBUGPORT.write(c);                                // Local echo of what we got
+	 gps.encode(c);                                     // Send to encoder
+	  
+	 if (c == '$' || c == '!' || index ){                // Start char or started to read? && c != '\n'
+		buffer[index++] = c;                              // Fill the buffer with chars
+		status = 0;
+				
+		if (buffer[index-4]=='*'){                        // Have we read the * and the two chksum chars and newline should be -3?
+		  buffer[index] = '\0';                           // Terminate the string
+		  index = 0;                                      // Then stop adding chars to the buffer
+		  status = 1;                                     // Done with a string
 
-        DEBUGPORT.print(" chksum:");DEBUGPORT.printf(" %x", (unsigned char)calcNmeaChecksum(buffer) );
-      }
-      
-      if ( index > NMEA_MAX_LENGTH )index=0;             // Have we passed max, the startover         
-    }
-    else {
-      index=0;  
-    }
+		  DEBUGPORT.print(" chksum:");DEBUGPORT.printf(" %x", (unsigned char)calcNmeaChecksum(buffer) );
+		}
+		
+		if ( index > NMEA_MAX_LENGTH )index=0;             // Have we passed max, the startover         
+	 }
+	 else {
+		index=0;  
+	 }
   }                                                      // END serial available
   return index;
 }
@@ -421,7 +427,7 @@ int readNMEASerial( char *buffer, int index, int &status ){
 int calcNmeaChecksum(char *nmeaMessageBuffer){
   int parity = 0, i=1; //skip the $
   while(nmeaMessageBuffer[i]!='*'){
-      parity ^= nmeaMessageBuffer[i++];
+		parity ^= nmeaMessageBuffer[i++];
   }
   return parity;
 }
@@ -431,44 +437,44 @@ boolean handleTCP(char *nmeaMessageBuffer, int nmeaStatus){
 // TCP Handling 
 //    
   if ( nmeaTCPServer.hasClient() ){                                             // Do we have ANY clients connected?
-    //DEBUGPORT.println("*TCP client connected");
-    ledBlink(250);
-    for( uint8_t i = 0; i < MAX_SRV_CLIENTS; i++){                              // Loop over the client array
-      if (!nmeaTCPServerClients[i] || !nmeaTCPServerClients[i].connected() ){   // Is the array spot taken or client no longer connected?
-        if(nmeaTCPServerClients[i])
-          nmeaTCPServerClients[i].stop();                                       // If there is a clients and not connected, stop it!
-        nmeaTCPServerClients[i] = nmeaTCPServer.available();                    // Found a free spot, store the new client here (only if client sent any data!!) replace with connected()?
-        continue;                                                               // Break the for loop
-      }
-    }
-    //Reached end of for loop. no free/disconnected spots. Reject additional clients
-    //WiFiClient tempClient = nmeaTCPServer.available();                          // temp client just to say stop
-    //tempClient.stop();
-    nmeaTCPServer.available().stop();
+	 //DEBUGPORT.println("*TCP client connected");
+	 ledBlink(250);
+	 for( uint8_t i = 0; i < MAX_SRV_CLIENTS; i++){                              // Loop over the client array
+		if (!nmeaTCPServerClients[i] || !nmeaTCPServerClients[i].connected() ){   // Is the array spot taken or client no longer connected?
+		  if(nmeaTCPServerClients[i])
+			 nmeaTCPServerClients[i].stop();                                       // If there is a clients and not connected, stop it!
+		  nmeaTCPServerClients[i] = nmeaTCPServer.available();                    // Found a free spot, store the new client here (only if client sent any data!!) replace with connected()?
+		  continue;                                                               // Break the for loop
+		}
+	 }
+	 //Reached end of for loop. no free/disconnected spots. Reject additional clients
+	 //WiFiClient tempClient = nmeaTCPServer.available();                          // temp client just to say stop
+	 //tempClient.stop();
+	 nmeaTCPServer.available().stop();
   }  // No TCP clients connected
   
   //push NMEA data to all connected TCP clients
   if(nmeaStatus==1){                                                               //Do we have a full NMEA sentence?
-    uint8_t i;
-    for(i = 0; i < MAX_SRV_CLIENTS; i++){                                          //Loop over all clients
-      if (nmeaTCPServerClients[i] && nmeaTCPServerClients[i].connected()){         //Only worry about connected clients
-        nmeaTCPServerClients[i].println(nmeaMessageBuffer);                        //Send the string to the client        
-        delay(1);                                                                  //Helthy delay to finish the job
-        DEBUGPORT.print("*TCP NMEA sentence pushed to client#"); Serial.println(i);    //Log it on console         
-      }
-    }
+	 uint8_t i;
+	 for(i = 0; i < MAX_SRV_CLIENTS; i++){                                          //Loop over all clients
+		if (nmeaTCPServerClients[i] && nmeaTCPServerClients[i].connected()){         //Only worry about connected clients
+		  nmeaTCPServerClients[i].println(nmeaMessageBuffer);                        //Send the string to the client        
+		  delay(1);                                                                  //Helthy delay to finish the job
+		  DEBUGPORT.print("*TCP NMEA sentence pushed to client#"); Serial.println(i);    //Log it on console         
+		}
+	 }
   }
 
   //check TCP clients for incoming data - What should we use if for???
   uint8_t i = 0;
   for(i = 0; i < MAX_SRV_CLIENTS; i++){
-    if (nmeaTCPServerClients[i] && nmeaTCPServerClients[i].connected()){
-      if(nmeaTCPServerClients[i].available()){
-        while(nmeaTCPServerClients[i].available())                                  // Get data from the TCP client and push it to Serial
-          Serial.write(nmeaTCPServerClients[i].read());                             // Dump it to console for now  
-        Serial.print("\r\n");
-      }
-    }
+	 if (nmeaTCPServerClients[i] && nmeaTCPServerClients[i].connected()){
+		if(nmeaTCPServerClients[i].available()){
+		  while(nmeaTCPServerClients[i].available())                                  // Get data from the TCP client and push it to Serial
+			 Serial.write(nmeaTCPServerClients[i].read());                             // Dump it to console for now  
+		  Serial.print("\r\n");
+		}
+	 }
   }
   // End TCP Handling  
   return true;
@@ -483,39 +489,39 @@ byte UDPpacketBuffer[MAX_UDP_BUFFER];           // Buffer to hold incoming
 int noBytes = nmeaUDPServer.parsePacket();
 
   if ( noBytes && noBytes<MAX_UDP_BUFFER ) {
-    Serial.print("UDP: ");
-    Serial.print(millis() / 1000);
-    Serial.print(":Packet of ");
-    Serial.print(noBytes);
-    Serial.print(" bytes received from ");
-    Serial.print(nmeaUDPServer.remoteIP());
-    Serial.print(":");
-    Serial.println(nmeaUDPServer.remotePort());
+	 Serial.print("UDP: ");
+	 Serial.print(millis() / 1000);
+	 Serial.print(":Packet of ");
+	 Serial.print(noBytes);
+	 Serial.print(" bytes received from ");
+	 Serial.print(nmeaUDPServer.remoteIP());
+	 Serial.print(":");
+	 Serial.println(nmeaUDPServer.remotePort());
 
-    nmeaUDPServer.read(UDPpacketBuffer, noBytes);                                 //Read the packet into the buffer
-    Serial.write(UDPpacketBuffer, noBytes);                                       //Dump it to console for now
-    Serial.print("\r");
-    
-    UDPremoteip = nmeaUDPServer.remoteIP();                                          //Single UDP client for now
-    UDPremoteport = nmeaUDPServer.remotePort();                                      //TODO: Keep a arry of x UDP clients, and loop
-     
-    //response back to UDP sender
-    nmeaUDPServer.beginPacket(nmeaUDPServer.remoteIP(), nmeaUDPServer.remotePort());
-    nmeaUDPServer.write("Answer from ESP8266 ChipID#");
-    nmeaUDPServer.print(system_get_chip_id());
-    nmeaUDPServer.write("#IP of ESP8266#");
-    nmeaUDPServer.println(WiFi.localIP());
-    nmeaUDPServer.endPacket(); //
+	 nmeaUDPServer.read(UDPpacketBuffer, noBytes);                                 //Read the packet into the buffer
+	 Serial.write(UDPpacketBuffer, noBytes);                                       //Dump it to console for now
+	 Serial.print("\r");
+	 
+	 UDPremoteip = nmeaUDPServer.remoteIP();                                          //Single UDP client for now
+	 UDPremoteport = nmeaUDPServer.remotePort();                                      //TODO: Keep a arry of x UDP clients, and loop
+	  
+	 //response back to UDP sender
+	 nmeaUDPServer.beginPacket(nmeaUDPServer.remoteIP(), nmeaUDPServer.remotePort());
+	 nmeaUDPServer.write("Answer from ESP8266 ChipID#");
+	 nmeaUDPServer.print(system_get_chip_id());
+	 nmeaUDPServer.write("#IP of ESP8266#");
+	 nmeaUDPServer.println(WiFi.localIP());
+	 nmeaUDPServer.endPacket(); //
   }
 
   if(nmeaStatus && UDPremoteip){                                                 //Do we have a full NMEA sentence and a receiver?
-    nmeaUDPServer.beginPacket(UDPremoteip, UDPremoteport);                       
-    //nmeaUDPServer.beginPacketMulticast(IPAddress('239.0.0.36'), 5052, WiFi.localIP()); or broadcast .255
-    nmeaUDPServer.print(nmeaMessageBuffer);
-    nmeaUDPServer.endPacket();
-    Serial.println("NMEA String pushed to UDP client");                          //Log it on console  
+	 nmeaUDPServer.beginPacket(UDPremoteip, UDPremoteport);                       
+	 //nmeaUDPServer.beginPacketMulticast(IPAddress('239.0.0.36'), 5052, WiFi.localIP()); or broadcast .255
+	 nmeaUDPServer.print(nmeaMessageBuffer);
+	 nmeaUDPServer.endPacket();
+	 Serial.println("NMEA String pushed to UDP client");                          //Log it on console  
   }
-   // End UDP Handling
+	// End UDP Handling
   return true;
 }
 
@@ -528,13 +534,13 @@ int noBytes = nmeaUDPServer.parsePacket();
 boolean initWifi(boolean rst){
 
   boolean state = true;
-    
+	 
   //Local intialization. Once its business is done, there is no need to keep it around
   WiFiManager wifiManager;
 
   if(rst){
-    //reset settings - for testing
-    wifiManager.resetSettings();
+	 //reset settings - for testing
+	 wifiManager.resetSettings();
   }
   //sets timeout until configuration portal gets turned off
   //useful to make it all retry or go to sleep 180 in seconds
@@ -544,17 +550,17 @@ boolean initWifi(boolean rst){
   //if it does not connect it starts an access point with the specified name
   //if autoConnect fails it start in real AP mode
   if(!wifiManager.autoConnect(ssid)) {
-    Serial.println("failed to connect and hit timeout");
-    state = false;
-    delay(3000);
+	 Serial.println("failed to connect and hit timeout");
+	 state = false;
+	 delay(3000);
 
-    //Everything failed so start a soft AP
-    if(WiFi.softAP(ssid)){                      //ssid, No password
-      state = true;
-      
-      IPAddress myIP = WiFi.softAPIP();
-      Serial.print("AP IP address: "); Serial.println(myIP);
-    }
+	 //Everything failed so start a soft AP
+	 if(WiFi.softAP(ssid)){                      //ssid, No password
+		state = true;
+		
+		IPAddress myIP = WiFi.softAPIP();
+		Serial.print("AP IP address: "); Serial.println(myIP);
+	 }
   }  
 
   //WiFi.printDiag(DEBUGPORT);
@@ -569,41 +575,41 @@ boolean initWifi(boolean rst){
 long determineBaudRate(int recpin) {
   long baud, rate = 10000, x;
   for (int i = 0; i < 10; i++) {
-    x = pulseIn(recpin,LOW,200);        // measure the next zero bit width. 200ms (defalut 1sec timeout.)
-    if (x > 0)
-      rate = x < rate ? x : rate;   //min();
+	 x = pulseIn(recpin,LOW,200);        // measure the next zero bit width. 200ms (defalut 1sec timeout.)
+	 if (x > 0)
+		rate = x < rate ? x : rate;   //min();
   }
   if (rate < 12)
-    baud = 115200;
-    else if (rate < 20)
-    baud = 57600;
-    else if (rate < 29)
-    baud = 38400;
-    else if (rate < 40)
-    baud = 28800;
-    else if (rate < 60)
-    baud = 19200;
-    else if (rate < 80)
-    baud = 14400;
-    else if (rate < 150)
-    baud = 9600;
-    else if (rate < 300)
-    baud = 4800;
-    else if (rate < 600)
-    baud = 2400;
-    else if (rate < 1200)
-    baud = 1200;
-    else
-    baud = 0;  
+	 baud = 115200;
+	 else if (rate < 20)
+	 baud = 57600;
+	 else if (rate < 29)
+	 baud = 38400;
+	 else if (rate < 40)
+	 baud = 28800;
+	 else if (rate < 60)
+	 baud = 19200;
+	 else if (rate < 80)
+	 baud = 14400;
+	 else if (rate < 150)
+	 baud = 9600;
+	 else if (rate < 300)
+	 baud = 4800;
+	 else if (rate < 600)
+	 baud = 2400;
+	 else if (rate < 1200)
+	 baud = 1200;
+	 else
+	 baud = 0;  
   return baud;
 }
 
 void showSPIFFS(){
   Dir dir = SPIFFS.openDir("/");
   while (dir.next()) {    
-    String fileName = dir.fileName();
-    size_t fileSize = dir.fileSize();
-    DEBUGPORT.printf("FS File: %s, size: %s\n\r", fileName.c_str(), formatBytes(fileSize).c_str());
+	 String fileName = dir.fileName();
+	 size_t fileSize = dir.fileSize();
+	 DEBUGPORT.printf("FS File: %s, size: %s\n\r", fileName.c_str(), formatBytes(fileSize).c_str());
   }
   DEBUGPORT.printf("\n");
 }
@@ -618,54 +624,54 @@ void readConfig( const char *filename ){
   File f = SPIFFS.open(filename, "r");
 
   if (!f) {
-    DEBUGPORT.println(F("cfg* file open failed"));
-    return; 
+	 DEBUGPORT.println(F("cfg* file open failed"));
+	 return; 
   } 
   else{
-    JsonObject& root = jsonBuffer.parseObject(f);
-    
-    if (!root.success()) {
-      DEBUGPORT.println(F("cfg* parse config failed"));
-      return;
-    }
+	 JsonObject& root = jsonBuffer.parseObject(f);
+	 
+	 if (!root.success()) {
+		DEBUGPORT.println(F("cfg* parse config failed"));
+		return;
+	 }
   
-    //root.prettyPrintTo(DEBUGPORT);
-    
-    if( root.containsKey("tcpPort") )
-      TCPPort = root["tcpPort"];
+	 //root.prettyPrintTo(DEBUGPORT);
+	 
+	 if( root.containsKey("tcpPort") )
+		TCPPort = root["tcpPort"];
 
-    if( root.containsKey("udpPort") )
-      UDPPort = root["udpPort"];
-        
-    if( root.containsKey("webPort") )
-      WEBPort = root["webPort"];
+	 if( root.containsKey("udpPort") )
+		UDPPort = root["udpPort"];
+		  
+	 if( root.containsKey("webPort") )
+		WEBPort = root["webPort"];
 
-    if( root.containsKey("txPin") )
-      txPin = root["txPin"];
+	 if( root.containsKey("txPin") )
+		txPin = root["txPin"];
 
-    if( root.containsKey("rxPin") )
-      rxPin = root["rxPin"];
-    
-    if( root.containsKey("hostname") ){
-      strncpy(ssid, root["hostname"], MAXSTR);
-    }
-    
-    if( root.containsKey("boatName") ){
-      strncpy(boatName, root["boatName"] , MAXSTR);
-    }
+	 if( root.containsKey("rxPin") )
+		rxPin = root["rxPin"];
+	 
+	 if( root.containsKey("hostname") ){
+		strncpy(ssid, root["hostname"], MAXSTR);
+	 }
+	 
+	 if( root.containsKey("boatName") ){
+		strncpy(boatName, root["boatName"] , MAXSTR);
+	 }
 
-    if( root.containsKey("boatMMSI") ){
-      boatMMSI  = root["boatMMSI"];
-    }
+	 if( root.containsKey("boatMMSI") ){
+		boatMMSI  = root["boatMMSI"];
+	 }
 
-    if( root.containsKey("otaPassword") ){
-      strncpy(password, root["otaPassword"], MAXSTR);
-    }
-    
-    if( root.containsKey("baudRate") ){
-      nmeaBaud = root["baudRate"];
-    }
-       
+	 if( root.containsKey("otaPassword") ){
+		strncpy(password, root["otaPassword"], MAXSTR);
+	 }
+	 
+	 if( root.containsKey("baudRate") ){
+		nmeaBaud = root["baudRate"];
+	 }
+		 
   }
   
 }
@@ -677,17 +683,17 @@ bool initMDNS( const char *hostname ){
   delay(5);
   // Setup and Register mDNS
   if ( MDNS.begin(hostname) ) {
-    Serial.print("*mDNS: Responder STARTED. Hostname -> "); Serial.println(hostname);
+	 Serial.print("*mDNS: Responder STARTED. Hostname -> "); Serial.println(hostname);
 
-    // Register services
-    MDNS.addService("http", "tcp", WEBPort);            // Web server - discomment if you need this
-    MDNS.addService("nmea", "tcp", TCPPort);            // NMEA server
-    MDNS.addService("nmea", "udp", UDPPort);            // NMEA server
-    MDNS.addService("signalk-http", "tcp", WEBPort);    // Signal K server  _signalk-http._tcp
-    
+	 // Register services
+	 MDNS.addService("http", "tcp", WEBPort);            // Web server - discomment if you need this
+	 MDNS.addService("nmea", "tcp", TCPPort);            // NMEA server
+	 MDNS.addService("nmea", "udp", UDPPort);            // NMEA server
+	 MDNS.addService("signalk-http", "tcp", WEBPort);    // Signal K server  _signalk-http._tcp
+	 
   }
   else {
-    Serial.println("*mDNS: Responder FAILED");
+	 Serial.println("*mDNS: Responder FAILED");
   }  
 }
 
@@ -698,79 +704,81 @@ bool showParsedNmea(){
   aisdata aisData; 
   
   if( ais.isUpdated() && ais.isValid() ){
-    if( decodeAIS( ais.value(), aisData ) ){
-      Serial.print(F("*AIS msg type="));Serial.println(aisData.type);
-      Serial.print(F("*AIS MMSI="));Serial.println(aisData.mmsi);
-      Serial.print(F("*AIS Navigation status="));Serial.println(aisData.navigationStatus);
-      Serial.print(F("*AIS Turnrate="));Serial.println(aisData.RateOfTurn);
-      Serial.print(F("*AIS SOG="));Serial.println(aisData.sog);
-      Serial.print(F("*AIS Longitude="));Serial.println(aisData.longitude,6);
-      Serial.print(F("*AIS Latitude="));Serial.println(aisData.latitude,6);
-      Serial.print(F("*AIS COG="));Serial.println(aisData.cog);
-      Serial.print(F("*AIS True heading="));Serial.println(aisData.trueHeading); 
-      Serial.print(F("*AIS UTC Second="));Serial.println(aisData.UTCSeconds); 
-    }
-    else{
-      Serial.print( F("*AIS Error: Could not decode message") );
-    }
+	 if( decodeAIS( ais.value(), aisData ) ){
+		Serial.print(F("*AIS msg type="));Serial.println(aisData.type);
+		Serial.print(F("*AIS MMSI="));Serial.println(aisData.mmsi);
+		Serial.print(F("*AIS Navigation status="));Serial.println(aisData.navigationStatus);
+		Serial.print(F("*AIS Turnrate="));Serial.println(aisData.RateOfTurn);
+		Serial.print(F("*AIS SOG="));Serial.println(aisData.sog);
+		Serial.print(F("*AIS Longitude="));Serial.println(aisData.longitude,6);
+		Serial.print(F("*AIS Latitude="));Serial.println(aisData.latitude,6);
+		Serial.print(F("*AIS COG="));Serial.println(aisData.cog);
+		Serial.print(F("*AIS True heading="));Serial.println(aisData.trueHeading); 
+		Serial.print(F("*AIS UTC Second="));Serial.println(aisData.UTCSeconds); 
+	 }
+	 else{
+		Serial.print( F("*AIS Error: Could not decode message") );
+	 }
   }
 
   if ( gps.location.isUpdated() && gps.location.isValid() ){
-    Serial.print( F("Location FixAge=") );
-    Serial.print( gps.location.age() );
-    Serial.print( F(" Lat=") );
-    Serial.print( gps.location.lat(), 6 );
-    Serial.print( F(" Long=") );
-    Serial.println( gps.location.lng(), 6 );
-   } 
+	 Serial.print( F("Location FixAge=") );
+	 Serial.print( gps.location.age() );
+	 Serial.print( F(" Lat=") );
+	 Serial.print( gps.location.lat(), 6 );
+	 Serial.print( F(" Long=") );
+	 Serial.println( gps.location.lng(), 6 );
+	} 
 
   if (gps.date.isUpdated() && gps.date.isValid()){
-    Serial.print(F("Date: "));
-    Serial.print(gps.date.day());
-    Serial.print(F("-"));
-    Serial.print(gps.date.month());
-    Serial.print(F("-"));
-    Serial.println(gps.date.year());
+	 Serial.print(F("Date: "));
+	 Serial.print(gps.date.day());
+	 Serial.print(F("-"));
+	 Serial.print(gps.date.month());
+	 Serial.print(F("-"));
+	 Serial.println(gps.date.year());
   }
 
   if (gps.time.isUpdated() && gps.time.isValid()){
-    Serial.print(F("Time: "));
-    if (gps.time.hour() < 10) Serial.print(F("0"));
-    Serial.print(gps.time.hour());
-    Serial.print(F(":"));
-    if (gps.time.minute() < 10) Serial.print(F("0"));
-    Serial.print(gps.time.minute());
-    Serial.print(F(":"));
-    if (gps.time.second() < 10) Serial.print(F("0"));
-    Serial.print(gps.time.second());
-    Serial.print(F("."));
-    if (gps.time.centisecond() < 10) Serial.print(F("0"));
-    Serial.println(gps.time.centisecond());
+	 Serial.print(F("Time: "));
+	 if (gps.time.hour() < 10) Serial.print(F("0"));
+	 Serial.print(gps.time.hour());
+	 Serial.print(F(":"));
+	 if (gps.time.minute() < 10) Serial.print(F("0"));
+	 Serial.print(gps.time.minute());
+	 Serial.print(F(":"));
+	 if (gps.time.second() < 10) Serial.print(F("0"));
+	 Serial.print(gps.time.second());
+	 Serial.print(F("."));
+	 if (gps.time.centisecond() < 10) Serial.print(F("0"));
+	 Serial.println(gps.time.centisecond());
   }
 
   if (gps.speed.isUpdated()){
-   Serial.print(F("Knots="));
-   Serial.println(gps.speed.knots());
+	Serial.print(F("Knots="));
+	Serial.println(gps.speed.knots());
   }
 
   if (gps.course.isUpdated()){
-    Serial.print(F("Cource Deg="));
-    Serial.println(gps.course.deg());
+	 Serial.print(F("Cource Deg="));
+	 Serial.println(gps.course.deg());
   }
 
   if (gps.temp.isUpdated()){
-    Serial.print(F("Temp Celcius="));
-    Serial.print( gps.temp.celcius() ); 
+	 Serial.print(F("Temp Celcius="));
+	 Serial.print( gps.temp.celcius() ); 
   }
 
   if (gps.dept.isUpdated()){
-    Serial.print(F("Dept Meters="));
-    Serial.print( gps.dept.meters() ); 
+	 Serial.print(F("Dept Meters="));
+	 Serial.print( gps.dept.meters() ); 
   }
 
+  /*
   Serial.print("CHARS="); Serial.println( gps.charsProcessed() );                        
   Serial.print("SENTENCES="); Serial.println( gps.sentencesWithFix() );
   Serial.print("CSUM ERR="); Serial.println( gps.failedChecksum() );
+  */
 }
 
 /*
@@ -782,18 +790,18 @@ int log2file( const char *log ){
   File f = SPIFFS.open("/nmea.log", "a");
   
   if (!f) {
-    DEBUGPORT.println("*LOG Failed to create/open file for logging");
+	 DEBUGPORT.println("*LOG Failed to create/open file for logging");
   } 
   else {   
-    f.println(log);
+	 f.println(log);
   }
   
   size = f.size();
   f.close(); 
 
   if(size > MAX_LOG_FILE_SIZE){
-    SPIFFS.remove("/nmea.log");
-    DEBUGPORT.println(F("*LOG Rotating log file"));  
+	 SPIFFS.remove("/nmea.log");
+	 DEBUGPORT.println(F("*LOG Rotating log file"));  
   }
 
   return size;
@@ -804,30 +812,30 @@ int log2file( const char *log ){
 */
 #if OTA
 void initializeOTA() {
-    ArduinoOTA.setHostname(ssid);                               // Use ssid as hostname
-    ArduinoOTA.setPassword(password);                           // OTA PASSWORD
+	 ArduinoOTA.setHostname(ssid);                               // Use ssid as hostname
+	 ArduinoOTA.setPassword(password);                           // OTA PASSWORD
 
-    // Port defaults to 8266
-    // ArduinoOTA.setPort(8266);
+	 // Port defaults to 8266
+	 // ArduinoOTA.setPort(8266);
 
-    ArduinoOTA.onStart([]() {
-        DEBUGPORT.println("* OTA: Start");
-    });
-    ArduinoOTA.onEnd([]() {
-        DEBUGPORT.println("\n*OTA: End");
-    });
-    ArduinoOTA.onProgress([](unsigned int progress, unsigned int total) {
-        DEBUGPORT.printf("*OTA: Progress: %u%%\r", (progress / (total / 100)));
-    });
-    ArduinoOTA.onError([](ota_error_t error) {
-        DEBUGPORT.printf("*OTA: Error[%u]: ", error);
-        if (error == OTA_AUTH_ERROR) DEBUGPORT.println("Auth Failed");
-        else if (error == OTA_BEGIN_ERROR) DEBUGPORT.println("Begin Failed");
-        else if (error == OTA_CONNECT_ERROR) DEBUGPORT.println("Connect Failed");
-        else if (error == OTA_RECEIVE_ERROR) DEBUGPORT.println("Receive Failed");
-        else if (error == OTA_END_ERROR) DEBUGPORT.println("End Failed");
-    });
-    ArduinoOTA.begin();
-    DEBUGPORT.println("*OTA: Enabled");
+	 ArduinoOTA.onStart([]() {
+		  DEBUGPORT.println("* OTA: Start");
+	 });
+	 ArduinoOTA.onEnd([]() {
+		  DEBUGPORT.println("\n*OTA: End");
+	 });
+	 ArduinoOTA.onProgress([](unsigned int progress, unsigned int total) {
+		  DEBUGPORT.printf("*OTA: Progress: %u%%\r", (progress / (total / 100)));
+	 });
+	 ArduinoOTA.onError([](ota_error_t error) {
+		  DEBUGPORT.printf("*OTA: Error[%u]: ", error);
+		  if (error == OTA_AUTH_ERROR) DEBUGPORT.println("Auth Failed");
+		  else if (error == OTA_BEGIN_ERROR) DEBUGPORT.println("Begin Failed");
+		  else if (error == OTA_CONNECT_ERROR) DEBUGPORT.println("Connect Failed");
+		  else if (error == OTA_RECEIVE_ERROR) DEBUGPORT.println("Receive Failed");
+		  else if (error == OTA_END_ERROR) DEBUGPORT.println("End Failed");
+	 });
+	 ArduinoOTA.begin();
+	 DEBUGPORT.println("*OTA: Enabled");
 }
 #endif
