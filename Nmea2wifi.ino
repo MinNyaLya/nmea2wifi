@@ -220,7 +220,7 @@ void loop() {
 
 		StaticJsonBuffer<200> jsonBuffer;
 		JsonObject &json = nmeaToJSON(jsonBuffer);
-		json.printTo(DEBUG);										// Log to file and memory log
+		json.printTo(DEBUGPORT);										// Log to file and memory log
 		DEBUGPORT.println(jsonBuffer.size());				// Show used buffer size
 
 		DEBUGPORT.print("\n\rCurrent Time: "); DEBUGPORT.println(currentTimeToString());
