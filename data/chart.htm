@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta http-equiv="Content-type" content="text/html; charset=utf-8">
+  <title>Chart</title>
+    <script type="text/javascript" src="Chart.bundle.min.js"></script>
+
+  <script type="text/javascript">
+
+  var jsonArray = new Array();
+
+  var myLineChart;
+
+    function parseLogfile(logFile){
+      var position = 0;
+      var strStart = 0;
+      var strEnd = 0;
+      var logFileEnd = logFile.lastIndexOf("}");
+
+      while(strEnd < logFileEnd){
+        strStart = logFile.indexOf("{",position);       // Find start of json string
+        strEnd = logFile.indexOf("}",strStart);         // Find end of json string
+        if(strEnd)position = strEnd;                    // start search for the next string here
+
+        jsonArray.push ( JSON.parse( logFile.substring( strStart, strEnd+1 ) ) );
+      }
+      //showValues();
+    };
+
+    function loadValues(){
+      var xh = new XMLHttpRequest();
+      xh.onreadystatechange = function(){
+        if (xh.readyState == 4){
+          if(xh.status == 200) {
+            parseLogfile(xh.responseText);
+          } 
+        }
+      };
+      xh.open("GET", "http://192.168.1.212/nmea.log", true);
+      xh.send(null);
+    };
+
+    function showValues(){
+        var div_id = document.getElementById("log");
+
+        jsonArray.forEach(function (item, index, arr) {
+          div_id.innerHTML += item.gpstime + " " + item.millis + " " + item.speed + "<br>";
+          addData(myLineChart, item.millis, item.speed);
+        });
+    };
+    
+
+
+    x = setInterval(function(){ 
+        if(jsonArray.length){
+          clearInterval(x);
+          initChart();
+          showValues();
+          myLineChart.update();
+        }
+    }, 100);
+
+
+    function initChart(){
+        var ctx = document.getElementById("myChart").getContext('2d');
+        myLineChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+            labels: [],
+            datasets: [{
+              label: 'Speed',
+              data: [],
+              backgroundColor: [
+                  'rgba(255, 99, 132, 0.2)',
+                  'rgba(54, 162, 235, 0.2)',
+                  'rgba(255, 206, 86, 0.2)',
+                  'rgba(75, 192, 192, 0.2)',
+                  'rgba(153, 102, 255, 0.2)',
+                  'rgba(255, 159, 64, 0.2)'
+              ],
+              borderColor: [
+                  'rgba(255,99,132,1)',
+                  'rgba(54, 162, 235, 1)',
+                  'rgba(255, 206, 86, 1)',
+                  'rgba(75, 192, 192, 1)',
+                  'rgba(153, 102, 255, 1)',
+                  'rgba(255, 159, 64, 1)'
+              ],
+              borderWidth: 1
+            }]
+            },
+            options: {
+              scales: {
+                  yAxes: [{
+                      ticks: {
+                          beginAtZero:true
+                      }
+                  }]
+              }
+    }
+        });
+    };
+
+
+function addData(mychart, newlabel, newdata) {
+    mychart.data.labels.push(newlabel);
+    mychart.data.datasets.forEach((dataset) => {
+        dataset.data.push(newdata);
+    });
+    mychart.update();
+}
+
+
+</script>
+</head>
+<body id="index" style="margin:10; padding:5;" onload="loadValues();">
+
+<canvas id="myChart" width="300" height="100"></canvas>
+
+<pre id="log"></pre>
+
+
+</body>
+</html>

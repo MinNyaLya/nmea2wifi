@@ -212,26 +212,31 @@ void loop() {
 	handleUDP(nmeaBuffer, nmeaStatus);
 
 	// Use the string
-	if ( nmeaStatus ){                                // We have a full string so use it now
-		ledBlink(100);                                  // Start a 100ms blink
+	if ( nmeaStatus ){											// We have a full string so use it now
+		ledBlink(100);												// Start a 100ms blink
 		//DEBUGPORT.print("\n\rNMEA Sentense: "); DEBUGPORT.println(nmeaBuffer);
 
-		log2file(nmeaBuffer);                           // Save the string to the /nmea.log file 
+		log2file(nmeaBuffer);									// Save the string to the /nmea.log file 
 
-		StaticJsonBuffer<200> jsonBuffer;
+		StaticJsonBuffer<300> jsonBuffer;					// Allocate 300 on the heap for buffer
 		JsonObject &json = nmeaToJSON(jsonBuffer);
-		json.printTo(DEBUGPORT);										// Log to file and memory log
-		DEBUGPORT.println(jsonBuffer.size());				// Show used buffer size
+		json.printTo(DEBUGPORT);								// Log to serial debug
+		//DEBUGPORT.print("\n\rjsonBuffer size: "); DEBUGPORT.println(jsonBuffer.size());		// Show used buffer size
 
-		DEBUGPORT.print("\n\rCurrent Time: "); DEBUGPORT.println(currentTimeToString());
-		showParsedNmea();                                // Debug of gps data
+		size_t size = json.measureLength() + 1; 			// json serialized len+1
+		char jsonString[size];
+		json.printTo(jsonString, size); 						// writes string to buffer
+		//DEBUGPORT.print("\n\rjsonString size: "); DEBUGPORT.println(size);						// Show string length
+		log2file(jsonString);									// 
+		
+		//DEBUGPORT.print("\n\rCurrent Time: "); DEBUGPORT.println(currentTimeToString());
 
-		nmeaStatus = 0;                                 // String consumed -> reset
+		nmeaStatus = 0;											// String consumed -> reset
 	}
 
-	if(timeStatus() == timeNotSet)gpsSetTime();        // Set system time if not set or if sync is needed
+	if(timeStatus() == timeNotSet)gpsSetTime();			// Set system time if not set or if sync is needed
 		
-	ledBlink(0);                                      // Handle LED blinker
+	ledBlink(0);													// Handle LED blinker
 	 
 } // End loop()
 
@@ -243,17 +248,18 @@ JsonObject& nmeaToJSON(JsonBuffer &jsonBuffer) {
 
  	JsonObject &root = jsonBuffer.createObject();
 
-	//TODO : zero Timestamp buffer before ewuser
+	//TODO : zero Timestamp buffer before use
 	if (gps.date.isValid()){
 		gpsDateToString(gpsTimestamp_buffer);
-		gpsTimestamp_buffer[10]='T';           //Overwrite null char ;-)
+		gpsTimestamp_buffer[10]='T';						//Overwrite null char ;-)
 	}
 	if (gps.time.isValid()){
 		gpsTimeToString(&gpsTimestamp_buffer[11]);
 	}
-	root["gpstime"] = gpsTimestamp_buffer;
-	currentTimeToString();                    // Update time
-	root["currenttime"] = currentTimestamp_buffer;
+	root["gpstime"] = gpsTimestamp_buffer;				// time and date from NMEA data for this event
+	currentTimeToString();									// Update time
+	root["currenttime"] = currentTimestamp_buffer;	// current clock time even if not set
+	root["millis"]=millis();								// millis since bootup
 
 	if ( gps.location.isUpdated() && gps.location.isValid() ){
 		JsonArray &position = root.createNestedArray("position");
@@ -400,7 +406,7 @@ int readNMEASerial( char *buffer, int index, int &status ){
   if( NMEAPORT.available() ){                          // we have data in the UART buffer
 
 	 c = NMEAPORT.read();                               // read one char from the UART buffer
-	 DEBUGPORT.write(c);                                // Local echo of what we got
+	 //DEBUGPORT.write(c);                                // Local echo of what we got
 	 gps.encode(c);                                     // Send to encoder
 	  
 	 if (c == '$' || c == '!' || index ){                // Start char or started to read? && c != '\n'
@@ -412,7 +418,7 @@ int readNMEASerial( char *buffer, int index, int &status ){
 		  index = 0;                                      // Then stop adding chars to the buffer
 		  status = 1;                                     // Done with a string
 
-		  DEBUGPORT.print(" chksum:");DEBUGPORT.printf(" %x", (unsigned char)calcNmeaChecksum(buffer) );
+		  //DEBUGPORT.print("chksum:");DEBUGPORT.printf(" %x\n", (unsigned char)calcNmeaChecksum(buffer) );
 		}
 		
 		if ( index > NMEA_MAX_LENGTH )index=0;             // Have we passed max, the startover         
@@ -425,7 +431,7 @@ int readNMEASerial( char *buffer, int index, int &status ){
 }
 
 int calcNmeaChecksum(char *nmeaMessageBuffer){
-  int parity = 0, i=1; //skip the $
+  int parity = 0, i=1; //skip the $ or !
   while(nmeaMessageBuffer[i]!='*'){
 		parity ^= nmeaMessageBuffer[i++];
   }
@@ -774,11 +780,11 @@ bool showParsedNmea(){
 	 Serial.print( gps.dept.meters() ); 
   }
 
-  /*
   Serial.print("CHARS="); Serial.println( gps.charsProcessed() );                        
   Serial.print("SENTENCES="); Serial.println( gps.sentencesWithFix() );
   Serial.print("CSUM ERR="); Serial.println( gps.failedChecksum() );
-  */
+
+  return true;
 }
 
 /*
