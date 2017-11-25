@@ -62,9 +62,9 @@ ADC_MODE(ADC_VCC);
 
 const char		compile_date[]  = __DATE__ " " __TIME__;
 
-char				ssid[MAXSTR]    = HOSTNAME;         // SSID and Hostname for device
-char				password[MAXSTR]= "admin";          // OTA password
-char				boatName[MAXSTR]= "Aida";
+char			ssid[MAXSTR]    = HOSTNAME;         // SSID and Hostname for device
+char			password[MAXSTR]= "admin";          // OTA password
+char			boatName[MAXSTR]= "Aida";
 unsigned int	boatMMSI        = 1234567;
 boolean			wifiConnected   = false;            // Global wifi connection state
 
@@ -81,12 +81,12 @@ int				txPin           = 19;                 // Serial transmit Pin D2 = GPIO4 =
 int				nmeaBaud        = 0;                  // Detected baud rate
 int				nmeaBaudDefault = 9600;               // Default baud rate
 
-char				nmeaBuffer[128];                      // NMEA byte/char buffer to hold a full collected nmea sentence max 82 chars..
+char			nmeaBuffer[128];                      // NMEA byte/char buffer to hold a full collected nmea sentence max 82 chars..
 int				nmeaBufferIndex = 0;
 int				nmeaStatus      = 0;                  // We are reading a nmea sentence $ until *xx 0=notreading,1=reading_complete
 
-char				gpsTimestamp_buffer[24]      = "1970-01-01T00:00:01.00";       // For json output.
-char				currentTimestamp_buffer[24]  = "1970-01-01T00:00:01.00"; 
+char			gpsTimestamp_buffer[24]      = "1970-01-01T00:00:01.00";       // For json output.
+char			currentTimestamp_buffer[24]  = "1970-01-01T00:00:01.00"; 
 					  
 // Start a configurable timer
 Metro timer = Metro(0); 
@@ -622,6 +622,7 @@ void mountSPIFFS(){
 	else {
 		DEBUGPORT.println(F("Mount SPIFFS failed, trying to format"));
 		SPIFFS.format();
+		//TODO : Fetch one index.htm that can fetch the rest of the data files from github
 	}
 }
 
