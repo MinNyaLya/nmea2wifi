@@ -132,9 +132,8 @@ void setup() {
 	Serial.printf("Free size: %u\n\r", ESP.getFreeSketchSpace());
 	Serial.printf("TinyGPS++ %s\n\r", gps.libraryVersion() );
 
-	// Setup SP filesystem
-	SPIFFS.begin();                                               //TODO : Check for error                                       
-	//showSPIFFS();
+	// Mount SPIFFS and print content
+	mountSPIFFS();
 
 	//Init logfile
 	log2file("# bootup");
@@ -615,14 +614,30 @@ long determineBaudRate(int recpin) {
   return baud;
 }
 
+// Setup SP filesystem
+void mountSPIFFS(){
+	if(SPIFFS.begin() ){
+		showSPIFFS();
+	}
+	else {
+		DEBUGPORT.println(F("Mount SPIFFS failed, trying to format"));
+		SPIFFS.format();
+	}
+}
+
 void showSPIFFS(){
-  Dir dir = SPIFFS.openDir("/");
-  while (dir.next()) {    
-	 String fileName = dir.fileName();
-	 size_t fileSize = dir.fileSize();
-	 DEBUGPORT.printf("FS File: %s, size: %s\n\r", fileName.c_str(), formatBytes(fileSize).c_str());
-  }
-  DEBUGPORT.printf("\n");
+	FSInfo fs_info;
+	SPIFFS.info(fs_info);
+
+	DEBUGPORT.printf("Total bytes: %s, Used bytes: %s\n\r", formatBytes(fs_info.totalBytes).c_str(), formatBytes(fs_info.usedBytes).c_str());
+
+	Dir dir = SPIFFS.openDir("/");
+	while (dir.next()) {    
+		String fileName = dir.fileName();
+		size_t fileSize = dir.fileSize();
+		DEBUGPORT.printf("FS File: %s, size: %s\n\r", fileName.c_str(), formatBytes(fileSize).c_str());
+	}
+	DEBUGPORT.printf("\n");
 }
 
 /*
