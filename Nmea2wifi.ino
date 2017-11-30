@@ -1,7 +1,6 @@
 /*
 x aisData Array
 x add aisData array to json
-x Read config file
 x Parse API and connect to gauge
 x DONE Signal K json /API
 x multi UDP
@@ -23,6 +22,8 @@ https://github.com/jcable/nmea-link
 #include <WiFiManager.h>            // https://github.com/tzapu/WiFiManager
 //mDNS Dont seem to work in soft AP Mode
 #include <ESP8266mDNS.h>            // https://github.com/esp8266/Arduino/tree/master/libraries/ESP8266mDNS
+
+#include <WebSocketsServer.h>		// WebSockets for live updates
 
 // NMEA sentence parser
 #include "TinyGPS++.h"              // https://github.com/mikalhart/TinyGPS https://github.com/mikalhart/TinyGPSPlus
@@ -71,6 +72,7 @@ boolean			wifiConnected   = false;            // Global wifi connection state
 unsigned int	UDPPort         = 5050;
 unsigned int	TCPPort         = 5051;
 unsigned int	WEBPort         = 80;
+unsigned int	WEBSock         = 81;
 
 IPAddress		UDPremoteip;
 unsigned int	UDPremoteport;
@@ -109,7 +111,10 @@ WiFiUDP nmeaUDPServer;
 // Webserver instance
 ESP8266WebServer webServer(WEBPort);
 ESP8266WebServer *webServer2 = NULL;
-  
+
+// Web Sockets Server
+WebSocketsServer webSocket = WebSocketsServer(WEBSock);
+
 /*
 * Set up system and configurations
 * SPIFF (Flash file system)
@@ -167,6 +172,10 @@ void setup() {
   else{
 	 DEBUGPORT.print(F("*WEB Failed to start Webserver"));
   }
+
+	// Setup WebSockets and add listner function
+	webSocket.begin();
+	webSocket.onEvent(webSocketEvent);
 
 	//Setup TCP server
 	nmeaTCPServer.begin();                    //TODO:<-- Check success
@@ -250,7 +259,7 @@ int log2mem(const char *msg) {
 */
 JsonObject& nmeaToJSON(JsonBuffer &jsonBuffer) {
 
- 	JsonObject &root = jsonBuffer.createObject();
+	JsonObject &root = jsonBuffer.createObject();
 
 	//TODO : zero Timestamp buffer before use
 	if (gps.date.isValid()){
@@ -536,6 +545,27 @@ int noBytes = nmeaUDPServer.parsePacket();
 }
 
 /*
+* Web Socket Event handler
+*/
+void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t lenght) { // When a WebSocket message is received
+	switch (type) {
+	case WStype_DISCONNECTED:             // if the websocket is disconnected
+		DEBUGPORT.printf("[%u] Disconnected!\n", num);
+		break;
+	case WStype_CONNECTED: {              // if a new websocket connection is established
+		IPAddress ip = webSocket.remoteIP(num);
+		DEBUGPORT.printf("[%u] Connected from %d.%d.%d.%d url: %s\n", num, ip[0], ip[1], ip[2], ip[3], payload);
+		}
+		break;
+	case WStype_TEXT:                     // if new text data is received
+		DEBUGPORT.printf("[%u] get Text: %s\n", num, payload);
+		if (payload[0] == '#') {            // we get RGB data
+			break;
+		}
+	}
+}
+
+/*
   WiFiManager
   1. try connecting to last used wifi network, if fails try next
   2. try captive portal to configure new network, if fails try next (5 minutes timeout)
@@ -697,31 +727,28 @@ void readConfig( const char *filename ){
 	 
 	 if( root.containsKey("baudRate") ){
 		nmeaBaud = root["baudRate"];
-	 }
-		 
+	 }	 
   }
-  
 }
 
 /*
  * Init discovery mDNS discoveryprotocol
 */
 bool initMDNS( const char *hostname ){
-  delay(5);
-  // Setup and Register mDNS
-  if ( MDNS.begin(hostname) ) {
-	 Serial.print("*mDNS: Responder STARTED. Hostname -> "); Serial.println(hostname);
+	delay(5);
+	// Setup and Register mDNS
+	if ( MDNS.begin(hostname) ) {
+		Serial.print("*mDNS: Responder STARTED. Hostname -> "); Serial.println(hostname);
 
-	 // Register services
-	 MDNS.addService("http", "tcp", WEBPort);            // Web server - discomment if you need this
-	 MDNS.addService("nmea", "tcp", TCPPort);            // NMEA server
-	 MDNS.addService("nmea", "udp", UDPPort);            // NMEA server
-	 MDNS.addService("signalk-http", "tcp", WEBPort);    // Signal K server  _signalk-http._tcp
-	 
-  }
-  else {
-	 Serial.println("*mDNS: Responder FAILED");
-  }  
+		// Register services
+		MDNS.addService("http", "tcp", WEBPort);            // Web server - discomment if you need this
+		MDNS.addService("nmea", "tcp", TCPPort);            // NMEA server
+		MDNS.addService("nmea", "udp", UDPPort);            // NMEA server
+		MDNS.addService("signalk-http", "tcp", WEBPort);    // Signal K server  _signalk-http._tcp
+	}
+	else {
+		Serial.print("*mDNS: Responder FAILED");
+	}  
 }
 
 /*
