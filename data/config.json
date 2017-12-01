@@ -1,7 +1,8 @@
 {
 	"tcpPort":6050,
 	"udpPort":6051,
-	"webPort":81,
+	"webPort":80,
+	"WebSock":81,
 	"txPin":14,
 	"rxPin":15,
 	"hostname":"nmea2wifi",

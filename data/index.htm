@@ -1,19 +1,70 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 	<head>
-		<meta http-equiv="Content-type" content="text/html, charset=utf-8" name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
 		<title>NMEA2WIFI</title>
-		<link href="style.css" rel="stylesheet">
-		<script type="text/javascript"></script>
+		<!-- Required meta tags -->
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+		<link href="bootstrap.min.css.gz" rel="stylesheet">
+
 	</head>
-	<body id="index" onload="">
-		<div class="index-button">
-			<a href="/chart.htm"><button>NMEA Charts</button></a>
-			<a href="/gauge.htm"><button>NMEA Gauges (test)</button></a>
-			<a href="/nmea.log"><button>NMEA log</button></a>
-			<a href="/graphs.htm"><button>System stats</button></a>
-			<a href="/api"><button>Current API data</button></a>
-			<a href="/reset"><button>Reset device</button></a>
-		</div>
+	<body>
+		<!-- Optional JavaScript -->
+		<!-- jQuery first, then Popper.js, then Bootstrap JS -->
+		<script type="text/javascript" src="jquery-3.2.1.min.js.gz"></script>
+		<script type="text/javascript" src="popper.min.js.gz"></script>
+		<script type="text/javascript" src="bootstrap.min.js.gz"></script>
+
+<nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+	<a class="navbar-brand" href="#">nmes2wifi</a>
+	<button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+		<span class="navbar-toggler-icon"></span>
+	</button>
+	<div class="collapse navbar-collapse" id="navbarNav">
+		<ul class="navbar-nav">
+			<li class="nav-item active">
+				<a class="nav-link" href="/chart.htm">Graphs <span class="sr-only">(current)</span></a>
+			</li>
+			<li class="nav-item">
+				<a class="nav-link" href="/nmea.log">Logs</a>
+			</li>
+			<li class="nav-item">
+				<a class="nav-link" href="/config.htm">Settings</a>
+			</li>
+			<li class="nav-item">
+				<a class="nav-link" href="/api">Stats</a>
+			</li>
+			<li class="nav-item">
+				<a class="nav-link disabled" data-toggle="modal" data-target="#ResetModal" href="/reset">Reset</a>
+			</li>
+		</ul>
+	</div>
+</nav>
+
+<div class="container">
+
+
+<!-- Reset Modal -->
+<div class="modal fade" id="ResetModal" tabindex="-1" role="dialog" aria-labelledby="exampleModalLabel" aria-hidden="true">
+  <div class="modal-dialog" role="document">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="exampleModalLabel">Are you sure?</h5>
+        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body">
+        Reset the device means it will loose all wifi settings, and possible all saved data
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+        <button type="button" class="btn btn-primary">Reset</button>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+
 	</body>
 </html>

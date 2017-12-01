@@ -16,6 +16,8 @@ https://github.com/jcable/nmea-link
 #include <ESP8266WiFi.h>            // https://github.com/esp8266/Arduino
 #include <WiFiUDP.h>
 
+#include <WebSocketsServer.h>		// WebSockets for live updates
+
 // Needed for Wifi Manager library
 #include <DNSServer.h>
 #include <ESP8266WebServer.h>
@@ -23,7 +25,6 @@ https://github.com/jcable/nmea-link
 //mDNS Dont seem to work in soft AP Mode
 #include <ESP8266mDNS.h>            // https://github.com/esp8266/Arduino/tree/master/libraries/ESP8266mDNS
 
-#include <WebSocketsServer.h>		// WebSockets for live updates
 
 // NMEA sentence parser
 #include "TinyGPS++.h"              // https://github.com/mikalhart/TinyGPS https://github.com/mikalhart/TinyGPSPlus
@@ -239,11 +240,15 @@ void loop() {
 		
 		//DEBUGPORT.print("\n\rCurrent Time: "); DEBUGPORT.println(currentTimeToString());
 
+		webSocket.sendTXT(0, "C");
+
 		nmeaStatus = 0;											// String consumed -> reset
 	}
 
 	if(timeStatus() == timeNotSet)gpsSetTime();			// Set system time if not set or if sync is needed
-		
+
+	 webSocket.loop();									// Check webSockets Events
+
 	ledBlink(0);													// Handle LED blinker
 	 
 } // End loop()
@@ -557,11 +562,15 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t lenght
 		DEBUGPORT.printf("[%u] Connected from %d.%d.%d.%d url: %s\n", num, ip[0], ip[1], ip[2], ip[3], payload);
 		}
 		break;
-	case WStype_TEXT:                     // if new text data is received
+	case WStype_TEXT: {                    // if new text data is received
 		DEBUGPORT.printf("[%u] get Text: %s\n", num, payload);
-		if (payload[0] == '#') {            // we get RGB data
-			break;
+		// send Response message to client
+		webSocket.sendTXT(num, "Tack!");
+		//if (payload[0] == '#') {            // we get RGB data
+		//	break;
+		//}
 		}
+		break;
 	}
 }
 

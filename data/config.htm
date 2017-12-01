@@ -1,101 +1,127 @@
 <!DOCTYPE html>
-<html>
-<head>
-  <meta http-equiv="Content-type" content="text/html; charset=utf-8">
-  <title>Config parameters</title>
-  <link href="style.css" rel="stylesheet">
-  <script type="text/javascript">
+<html lang="en">
+	<head>
+		<title>NMEA2WIFI</title>
+		<!-- Required meta tags -->
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+		<link href="bootstrap.min.css.gz" rel="stylesheet">
 
-    function loadValues(){
-      var xh = new XMLHttpRequest();
-      xh.onreadystatechange = function(){
-        if (xh.readyState == 4){
-          if(xh.status == 200) {
-            var res = JSON.parse(xh.responseText);
-            var div_id = document.getElementById("params");
-            for(var param in res){
-              //div_id.innerHTML += param + ":" + res[param] + "<br>";
+	</head>
+	<body>
+		<!-- Optional JavaScript -->
+		<!-- jQuery first, then Popper.js, then Bootstrap JS -->
+		<script type="text/javascript" src="jquery-3.2.1.min.js.gz"></script>
+		<script type="text/javascript" src="popper.min.js.gz"></script>
+		<script type="text/javascript" src="bootstrap.min.js.gz"></script>
 
-              var did = document.getElementById(param);
-              if(did)did.value=res[param];
-            }
+<nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+	<a class="navbar-brand" href="#">nmes2wifi</a>
+	<button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+		<span class="navbar-toggler-icon"></span>
+	</button>
+	<div class="collapse navbar-collapse" id="navbarNav">
+		<ul class="navbar-nav">
+			<li class="nav-item active">
+				<a class="nav-link" href="/chart.htm">Graphs <span class="sr-only">(current)</span></a>
+			</li>
+			<li class="nav-item">
+				<a class="nav-link" href="/nmea.log">Logs</a>
+			</li>
+			<li class="nav-item">
+				<a class="nav-link" href="/config.htm">Settings</a>
+			</li>
+			<li class="nav-item">
+				<a class="nav-link" href="/api">Stats</a>
+			</li>
+			<li class="nav-item">
+				<a class="nav-link disabled" data-toggle="modal" data-target="#ResetModal" href="/reset">Reset</a>
+			</li>
+		</ul>
+	</div>
+</nav>
 
-          } 
-        }
-      };
-      xh.open("GET", "/config.json", true);
-      xh.send(null);
-    };
-    
-    function onBodyLoad(){
-      loadValues();
-    };
+<div class="container">
+<h1>Settings</h1>
 
-  </script>
-</head>
-<body id="index" onload="onBodyLoad()">
-  <div class="wrapper">
-    <!-- Form -->
-    <form id="nmea-form" action="/" method="post">
+<!-- div class="alert alert-warning alert-dismissible fade show" role="alert">
+  <strong>Holy guacamole!</strong> You should check in on some of those fields below.
+  <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+    <span aria-hidden="true">&times;</span>
+  </button>
+</div-->
 
-    <div class="input-row">
-      <div class="input-lable">TCP Port</div>
-      <input id="tcpPort" placeholder="..." type="text" tabindex="1" class="enjoy-css">
+<div class="container">
+	<form onclick="">
+		<div class="form-row">
+			<div class="col form-group">
+				<label for="webPort">Web port</label>
+				<input type="number" class="form-control" id="webPort" aria-describedby="webHelp" placeholder="80">
+				<small id="webHelp" class="form-text text-muted">Web port to serve these pages</small>
+			</div>
+			<div class="col form-group">
+				<label for="webPort">WebSockets port</label>
+				<input type="number" class="form-control" id="webSock" aria-describedby="webSockHelp" placeholder="81">
+				<small id="webSockHelp" class="form-text text-muted">WebSockets port</small>
+			</div>
+		</div>
+		<div class="form-row">
+			<div class="col form-group">
+				<label for="tcpPort">TCP port</label>
+				<input type="number" class="form-control" id="tcpPort" aria-describedby="tcpHelp" placeholder="5060">
+				<small id="tcpHelp" class="form-text text-muted">TCP port where nmea2wifi will listen for connections</small>
+			</div>
+			<div class="col form-group">
+				<label for="udpPort">UDP port</label>
+				<input type="number" class="form-control" id="udpPort" aria-describedby="udpHelp" placeholder="5061">
+				<small id="udpHelp" class="form-text text-muted">UDP port where nmea2wifi will listen for connections</small>
+			</div>
+		</div>
+		<div class="form-row">
+			<div class="col form-group">
+				<label for="txPin">Tx pin</label>
+				<input type="number" class="form-control" id="txPin" aria-describedby="txPinHelp" placeholder="14">
+				<!--small id="txPinHelp" class="form-text text-muted">Serial Transmit (tx) arduino ESP8266 pin number</small-->
+			</div>
+			<div class="col form-group">
+				<label for="rxPin">Rx pin</label>
+				<input type="number" class="form-control" id="rxPin" aria-describedby="rxPinHelp" placeholder="15">
+				<!--small id="rxPinHelp" class="form-text text-muted">Serial Recevice (rx) arduino ESP8266 pin number</small-->
+			</div>
+		</div>
+
+		<div class="form-check">
+			<label class="form-check-label">
+				<input type="checkbox" class="form-check-input">
+				Check me out
+			</label>
+		</div>
+		<button type="submit" class="btn btn-primary">Submit</button>
+	</form>
+</div>
+
+<!-- Reset Modal -->
+<div class="modal fade" id="ResetModal" tabindex="-1" role="dialog" aria-labelledby="exampleModalLabel" aria-hidden="true">
+  <div class="modal-dialog" role="document">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="exampleModalLabel">Are you sure?</h5>
+        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body">
+        Reset the device means it will loose all wifi settings, and possible all saved data
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+        <button type="button" class="btn btn-primary">Reset</button>
+      </div>
     </div>
-
-    <div class="input-row">
-      <div class="input-lable">UDP Port</div>
-      <input id="udpPort" placeholder="..." type="text" tabindex="1" class="enjoy-css">
-    </div>
-
-    <div class="input-row">
-      <div class="input-lable">Web Port</div>
-      <input id="webPort" placeholder="..." type="text" tabindex="1" class="enjoy-css">
-    </div>
-
-    <div class="input-row">
-      <div class="input-lable">Web Port</div>
-      <input id="txPin" placeholder="..." type="text" tabindex="1" class="enjoy-css">
-    </div>
-
-    <div class="input-row">
-      <div class="input-lable">Web Port</div>
-      <input id="rxPin" placeholder="..." type="text" tabindex="1" class="enjoy-css">
-    </div>
-
-    <div class="input-row">
-      <div class="input-lable">Web Port</div>
-      <input id="hostname" placeholder="..." type="text" tabindex="1" class="enjoy-css">
-    </div>
-
-    <div class="input-row">
-      <div class="input-lable">Web Port</div>
-      <input id="otaPassword" placeholder="..." type="text" tabindex="1" class="enjoy-css">
-    </div>    
-    <div class="input-row">
-      <div class="input-lable">Web Port</div>
-      <input id="boatName" placeholder="..." type="text" tabindex="1" class="enjoy-css">
-    </div>
-
-    <div class="input-row">
-      <div class="input-lable">Web Port</div>
-      <input id="boatMMSI" placeholder="..." type="text" tabindex="1" class="enjoy-css">
-    </div>
-
-    <div class="input-row">
-      <div class="input-lable">Web Port</div>
-      <input id="baudRate" placeholder="..." type="text" tabindex="1" class="enjoy-css">
-    </div>
-
-    <div class="input-row">
-      <input id="submit" placeholder="Save" type="submit" class="">
-    </div>
-
-  </form>
-  <!-- /Form -->
   </div>
+</div>
+</div>
 
-<pre id="params"></pre>
 
-</body>
+	</body>
 </html>
