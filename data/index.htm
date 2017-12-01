@@ -5,15 +5,15 @@
 		<!-- Required meta tags -->
 		<meta charset="utf-8">
 		<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-		<link href="bootstrap.min.css.gz" rel="stylesheet">
+		<link href="bootstrap.min.css" rel="stylesheet">
 
 	</head>
 	<body>
 		<!-- Optional JavaScript -->
 		<!-- jQuery first, then Popper.js, then Bootstrap JS -->
-		<script type="text/javascript" src="jquery-3.2.1.min.js.gz"></script>
-		<script type="text/javascript" src="popper.min.js.gz"></script>
-		<script type="text/javascript" src="bootstrap.min.js.gz"></script>
+		<script type="text/javascript" src="jquery-3.2.1.min.js"></script>
+		<script type="text/javascript" src="popper.min.js"></script>
+		<script type="text/javascript" src="bootstrap.min.js"></script>
 
 <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
 	<a class="navbar-brand" href="#">nmes2wifi</a>
@@ -43,6 +43,7 @@
 
 <div class="container">
 
+<button type="button" class="btn btn-primary" onclick="connection.send('click!');">Primary</button>
 
 <!-- Reset Modal -->
 <div class="modal fade" id="ResetModal" tabindex="-1" role="dialog" aria-labelledby="exampleModalLabel" aria-hidden="true">
@@ -65,6 +66,26 @@
   </div>
 </div>
 </div>
+
+
+<script type="text/javascript">
+var home = 'ws://' + window.location.hostname + ':81';
+var connection = new WebSocket('ws://192.168.1.212:81');
+
+connection.onopen = function () {
+	connection.send('Message from Browser to ESP8266 yay its Working!! ' + new Date()); 
+};
+
+connection.onerror = function (error) {
+	console.log('WebSocket Error ', error);
+};
+
+connection.onmessage = function (e) {
+	console.log('Server: ', e.data);
+	//connection.send('Time: ' + new Date()); 
+};
+
+</script>
 
 	</body>
 </html>

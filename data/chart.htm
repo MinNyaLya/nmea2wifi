@@ -5,7 +5,7 @@
 		<!-- Required meta tags -->
 		<meta charset="utf-8">
 		<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-		<link href="bootstrap.min.css.gz" rel="stylesheet">
+		<link href="bootstrap.min.css" rel="stylesheet">
 	<script type="text/javascript">
 
 	var jsonArray = new Array();
@@ -115,10 +115,10 @@ function addData(mychart, newlabel, newdata) {
 	<body>
 		<!-- Optional JavaScript -->
 		<!-- jQuery first, then Popper.js, then Bootstrap JS -->
-		<script type="text/javascript" src="jquery-3.2.1.min.js.gz"></script>
-		<script type="text/javascript" src="popper.min.js.gz"></script>
-		<script type="text/javascript" src="bootstrap.min.js.gz"></script>
-		<script type="text/javascript" src="chart.bundle.min.js.gz"></script>
+		<script type="text/javascript" src="jquery-3.2.1.min.js"></script>
+		<script type="text/javascript" src="popper.min.js"></script>
+		<script type="text/javascript" src="bootstrap.min.js"></script>
+		<script type="text/javascript" src="chart.bundle.min.js"></script>
 
 <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
 	<a class="navbar-brand" href="#">nmes2wifi</a>
@@ -213,16 +213,10 @@ var myChart = new Chart(ctx, {
 	}
 });
 
-var connection = new WebSocket('localhost:81/', ['arduino']);
+var home = 'ws://' + window.location.hostname + ':81';
+var connection = new WebSocket('ws://192.168.1.212:81');
 connection.onopen = function () {
 	connection.send('Message from Browser to ESP8266 yay its Working!! ' + new Date()); 
-	connection.send('ping');
-	
-/*	setInterval(function() {
-		connection.send('Time: ' + new Date()); 
-	}, 20);
-*/
-connection.send('Time: ' + new Date()); 
 };
 connection.onerror = function (error) {
 	console.log('WebSocket Error ', error);

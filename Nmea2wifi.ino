@@ -134,9 +134,9 @@ void setup() {
 
 	Serial.println("");
 	Serial.println(compile_date);
-	Serial.printf("Sketch size: %u\n\r", ESP.getSketchSize());
-	Serial.printf("Free size: %u\n\r", ESP.getFreeSketchSpace());
-	Serial.printf("TinyGPS++ %s\n\r", gps.libraryVersion() );
+	Serial.printf("Sketch size: %u\r\n", ESP.getSketchSize());
+	Serial.printf("Free size: %u\r\n", ESP.getFreeSketchSpace());
+	Serial.printf("TinyGPS++ %s\r\n", gps.libraryVersion() );
 
 	// Mount SPIFFS and print content
 	mountSPIFFS();
@@ -145,47 +145,48 @@ void setup() {
 	log2file("# bootup");
 
 	//Read config from SPIFF file
-	readConfig("/config.txt");
+	readConfig("/config.json");
 
 	// Setup SoftwareSerialport
 	nmeaSerial = new SoftwareSerial(txPin, rxPin, false, 256);   // tx,rx, invert, buffersize
 	nmeaBaud = determineBaudRate(rxPin);                         // Try to detect BAUD on rxPIN
 	if(nmeaSerial)DEBUGPORT.println(F("SoftSerial init"));
 	nmeaSerial->begin(nmeaBaud ? nmeaBaud : nmeaBaudDefault);    // Start on detected baud or set to 9600
-	DEBUGPORT.print("Detected Baudrate:"); DEBUGPORT.println(nmeaBaud);
-	DEBUGPORT.print("Using    Baudrate:"); DEBUGPORT.println(nmeaBaud ? nmeaBaud : nmeaBaudDefault);
+	Serial.print(F("Detected Baudrate:")); Serial.println(nmeaBaud);
+	Serial.print(F("Using Baudrate:")); Serial.println(nmeaBaud ? nmeaBaud : nmeaBaudDefault);
 	nmeaSerial->write("nmeaSerial started");                     // Debug output on softserial port
-  
+
 #if OTA
 	initializeOTA();
 #endif
-  
+
 	// Initialise wifi connection 
 	wifiConnected = initWifi(NORMAL_WIFI);     //Blocking until some WIFI is setup
-	DEBUGPORT.println("*WM: connected...");
+	Serial.println("*WM: connected...");
 
-  // Initialise mDNS for WEB and NMEA TCP/UDP 
-  initMDNS(ssid);
+	// Initialise mDNS for WEB and NMEA TCP/UDP 
+	initMDNS(ssid);
 
-  if( initWebHandlers() ){
-	 DEBUGPORT.print(F("*WEB Server started on port:")); DEBUGPORT.println(WEBPort);  
-  }
-  else{
-	 DEBUGPORT.print(F("*WEB Failed to start Webserver"));
-  }
+	if( initWebHandlers() ){
+		Serial.print(F("*WEB Server started on port:")); DEBUGPORT.println(WEBPort);  
+	}
+	else{
+		Serial.print(F("*WEB Failed to start Webserver"));
+	}
 
 	// Setup WebSockets and add listner function
 	webSocket.begin();
 	webSocket.onEvent(webSocketEvent);
+	Serial.print(F("*WebSocket server started on port:")); Serial.println(WEBSock);
 
 	//Setup TCP server
 	nmeaTCPServer.begin();                    //TODO:<-- Check success
 	nmeaTCPServer.setNoDelay(true);
-	Serial.print("TCP server started on port:"); Serial.println(TCPPort);
+	Serial.print(F("*TCP server started on port:")); Serial.println(TCPPort);
   
 	//Setup UDP server
 	nmeaUDPServer.begin(UDPPort);              //TODO:<-- Check success
-	Serial.print(F("UDP server started on port:")); Serial.println(UDPPort);
+	Serial.print(F("*UDP server started on port:")); Serial.println(UDPPort);
 
 	Serial.print(F("Free Heap: ")); Serial.println(ESP.getFreeHeap());
 
@@ -223,40 +224,36 @@ void loop() {
 	// Use the string
 	if ( nmeaStatus ){											// We have a full string so use it now
 		ledBlink(100);												// Start a 100ms blink
-		//DEBUGPORT.print("\n\rNMEA Sentense: "); DEBUGPORT.println(nmeaBuffer);
+		//DEBUGPORT.print("\r\nNMEA Sentense: "); DEBUGPORT.println(nmeaBuffer);
 
 		log2file(nmeaBuffer);									// Save the string to the /nmea.log file 
 
 		StaticJsonBuffer<300> jsonBuffer;					// Allocate 300 on the heap for buffer
 		JsonObject &json = nmeaToJSON(jsonBuffer);
 		json.printTo(DEBUGPORT);								// Log to serial debug
-		//DEBUGPORT.print("\n\rjsonBuffer size: "); DEBUGPORT.println(jsonBuffer.size());		// Show used buffer size
+		//DEBUGPORT.print("\r\njsonBuffer size: "); DEBUGPORT.println(jsonBuffer.size());		// Show used buffer size
 
 		size_t size = json.measureLength() + 1; 			// json serialized len+1
 		char jsonString[size];
 		json.printTo(jsonString, size); 						// writes string to buffer
-		//DEBUGPORT.print("\n\rjsonString size: "); DEBUGPORT.println(size);						// Show string length
+		//DEBUGPORT.print("\r\njsonString size: "); DEBUGPORT.println(size);						// Show string length
 		log2file(jsonString);									// 
 		
-		//DEBUGPORT.print("\n\rCurrent Time: "); DEBUGPORT.println(currentTimeToString());
+		//DEBUGPORT.print("\r\nCurrent Time: "); DEBUGPORT.println(currentTimeToString());
 
-		webSocket.sendTXT(0, "C");
+		//webSocket.sendTXT(0, "C");
+		webSocket.sendTXT(0, jsonString);
 
 		nmeaStatus = 0;											// String consumed -> reset
 	}
 
 	if(timeStatus() == timeNotSet)gpsSetTime();			// Set system time if not set or if sync is needed
 
-	 webSocket.loop();									// Check webSockets Events
+	webSocket.loop();									// Check webSockets Events
 
 	ledBlink(0);													// Handle LED blinker
 	 
 } // End loop()
-
-int log2mem(const char *msg) {
-
-	
-}
 
 /*
 * Create a JSON string from current data to write to datalog log
@@ -552,25 +549,25 @@ int noBytes = nmeaUDPServer.parsePacket();
 /*
 * Web Socket Event handler
 */
-void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t lenght) { // When a WebSocket message is received
+void webSocketEvent(uint8_t num, WStype_t type, uint8_t *payload, size_t lenght) { // When a WebSocket message is received
 	switch (type) {
-	case WStype_DISCONNECTED:             // if the websocket is disconnected
-		DEBUGPORT.printf("[%u] Disconnected!\n", num);
-		break;
-	case WStype_CONNECTED: {              // if a new websocket connection is established
-		IPAddress ip = webSocket.remoteIP(num);
-		DEBUGPORT.printf("[%u] Connected from %d.%d.%d.%d url: %s\n", num, ip[0], ip[1], ip[2], ip[3], payload);
-		}
-		break;
-	case WStype_TEXT: {                    // if new text data is received
-		DEBUGPORT.printf("[%u] get Text: %s\n", num, payload);
-		// send Response message to client
-		webSocket.sendTXT(num, "Tack!");
-		//if (payload[0] == '#') {            // we get RGB data
-		//	break;
-		//}
-		}
-		break;
+		case WStype_DISCONNECTED:             // if the websocket is disconnected
+			DEBUGPORT.printf("[%u] Disconnected!\n", num);
+			break;
+		case WStype_CONNECTED: {              // if a new websocket connection is established
+			IPAddress ip = webSocket.remoteIP(num);
+			DEBUGPORT.printf("[%u] Connected from %d.%d.%d.%d url: %s\n", num, ip[0], ip[1], ip[2], ip[3], payload);
+			}
+			break;
+		case WStype_TEXT: {                    // if new text data is received
+			DEBUGPORT.printf("[%u] get Text: %s\n", num, payload);
+			// send Response message to client
+			// webSocket.sendTXT(num, "Tack!");
+			//if (payload[0] == '#') {            // we get RGB data
+			//	break;
+			//}
+			}
+			break;
 	}
 }
 
@@ -669,19 +666,19 @@ void showSPIFFS(){
 	FSInfo fs_info;
 	SPIFFS.info(fs_info);
 
-	DEBUGPORT.printf("Total bytes: %s, Used bytes: %s\n\r", formatBytes(fs_info.totalBytes).c_str(), formatBytes(fs_info.usedBytes).c_str());
+	DEBUGPORT.printf("Total bytes: %s, Used bytes: %s\r\n", formatBytes(fs_info.totalBytes).c_str(), formatBytes(fs_info.usedBytes).c_str());
 
 	Dir dir = SPIFFS.openDir("/");
 	while (dir.next()) {    
 		String fileName = dir.fileName();
 		size_t fileSize = dir.fileSize();
-		DEBUGPORT.printf("FS File: %s, size: %s\n\r", fileName.c_str(), formatBytes(fileSize).c_str());
+		DEBUGPORT.printf("FS File: %s, size: %s\r\n", fileName.c_str(), formatBytes(fileSize).c_str());
 	}
 	DEBUGPORT.printf("\n");
 }
 
 /*
- * Read a config.txt file in json format from SPIFF
+ * Read a config.json file in json format from SPIFF
  * parse the key/values and update variables
 */
 void readConfig( const char *filename ){
@@ -711,6 +708,9 @@ void readConfig( const char *filename ){
 		  
 	 if( root.containsKey("webPort") )
 		WEBPort = root["webPort"];
+
+	 if( root.containsKey("webSock") )
+		WEBSock = root["webSock"];
 
 	 if( root.containsKey("txPin") )
 		txPin = root["txPin"];
