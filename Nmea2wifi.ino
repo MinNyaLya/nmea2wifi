@@ -46,6 +46,7 @@ https://github.com/jcable/nmea-link
 
 // Defines
 #define         OTA               1                 // Use OverTheAir Updates
+#define         WSS               1                 // Use WebSockets
 #define         MAX_SRV_CLIENTS   5                 // How many clients should be to connect simultainiuslys
 #define         NORMAL_WIFI       false             // Wifimanager normal start
 #define         RESET_WIFI        true              // Wifimanager reset stored config
@@ -113,9 +114,10 @@ WiFiUDP nmeaUDPServer;
 ESP8266WebServer webServer(WEBPort);
 ESP8266WebServer *webServer2 = NULL;
 
+#if WSS
 // Web Sockets Server
 WebSocketsServer webSocket = WebSocketsServer(WEBSock);
-
+#endif
 /*
 * Set up system and configurations
 * SPIFF (Flash file system)
@@ -174,10 +176,12 @@ void setup() {
 		Serial.print(F("*WEB Failed to start Webserver"));
 	}
 
+#if WSS
 	// Setup WebSockets and add listner function
 	webSocket.begin();
 	webSocket.onEvent(webSocketEvent);
 	Serial.print(F("*WebSocket server started on port:")); Serial.println(WEBSock);
+#endif
 
 	//Setup TCP server
 	nmeaTCPServer.begin();                    //TODO:<-- Check success
@@ -241,16 +245,18 @@ void loop() {
 		
 		//DEBUGPORT.print("\r\nCurrent Time: "); DEBUGPORT.println(currentTimeToString());
 
+#if WSS
 		//webSocket.sendTXT(0, "C");
 		webSocket.sendTXT(0, jsonString);
-
+#endif
 		nmeaStatus = 0;											// String consumed -> reset
 	}
 
 	if(timeStatus() == timeNotSet)gpsSetTime();			// Set system time if not set or if sync is needed
 
+#if WSS
 	webSocket.loop();									// Check webSockets Events
-
+#endif
 	ledBlink(0);													// Handle LED blinker
 	 
 } // End loop()
@@ -546,30 +552,43 @@ int noBytes = nmeaUDPServer.parsePacket();
   return true;
 }
 
+#if WSS
 /*
 * Web Socket Event handler
 */
 void webSocketEvent(uint8_t num, WStype_t type, uint8_t *payload, size_t lenght) { // When a WebSocket message is received
 	switch (type) {
 		case WStype_DISCONNECTED:             // if the websocket is disconnected
-			DEBUGPORT.printf("[%u] Disconnected!\n", num);
-			break;
+			DEBUGPORT.printf("[%u] Disconnected!\r\n", num);
+		break;
 		case WStype_CONNECTED: {              // if a new websocket connection is established
 			IPAddress ip = webSocket.remoteIP(num);
-			DEBUGPORT.printf("[%u] Connected from %d.%d.%d.%d url: %s\n", num, ip[0], ip[1], ip[2], ip[3], payload);
-			}
-			break;
+			DEBUGPORT.printf("[%u] Connected from %d.%d.%d.%d url: %s\r\n", num, ip[0], ip[1], ip[2], ip[3], payload);
+		}
+		break;
 		case WStype_TEXT: {                    // if new text data is received
-			DEBUGPORT.printf("[%u] get Text: %s\n", num, payload);
+			DEBUGPORT.printf("[%u] get Text: %s %u\r\n", num, payload, lenght);
 			// send Response message to client
 			// webSocket.sendTXT(num, "Tack!");
 			//if (payload[0] == '#') {            // we get RGB data
 			//	break;
 			//}
+   			for(uint8_t i = 0; i < lenght; i++){
+				gps.encode(payload[i]);
 			}
-			break;
+		}
+		break;
+		case WStype_BIN:
+			DEBUGPORT.printf("[%u] get binary length: %u\r\n", num, lenght);
+			// echo data back to browser
+			//webSocket.sendBIN(num, payload, length);
+		break;
+		default:
+			DEBUGPORT.printf("Invalid WStype [%d]\r\n", type);
+		break;
 	}
 }
+#endif
 
 /*
   WiFiManager

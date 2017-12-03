@@ -100,6 +100,7 @@ bool handleFileRead(String path){
 		if(SPIFFS.exists(pathWithGz))
 			path += ".gz";
 		File file = SPIFFS.open(path, "r");
+		//webServer.sendHeader("Access-Control-Allow-Origin","*");    //CORS
 		size_t sent = webServer.streamFile(file, contentType);
 		file.close();
 		return true;
