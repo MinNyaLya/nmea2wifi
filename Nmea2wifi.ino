@@ -104,7 +104,7 @@ SoftwareSerial *nmeaSerial = NULL;                    // Pointer to hold the Sof
 
 // TCP instance to let us send and receive packets over TCP
 WiFiServer nmeaTCPServer(TCPPort);                    //
-WiFiServer *nmeaTCPServer2 = NULL;
+//WiFiServer *nmeaTCPServer2 = NULL;
 WiFiClient nmeaTCPServerClients[MAX_SRV_CLIENTS];
 
 // UDP instance to let us send and receive packets over UDP
@@ -556,7 +556,7 @@ int noBytes = nmeaUDPServer.parsePacket();
 /*
 * Web Socket Event handler
 */
-void webSocketEvent(uint8_t num, WStype_t type, uint8_t *payload, size_t lenght) { // When a WebSocket message is received
+void webSocketEvent(uint8_t num, WStype_t type, uint8_t *payload, size_t length) { // When a WebSocket message is received
 	switch (type) {
 		case WStype_DISCONNECTED:             // if the websocket is disconnected
 			DEBUGPORT.printf("[%u] Disconnected!\r\n", num);
@@ -567,19 +567,19 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t *payload, size_t lenght)
 		}
 		break;
 		case WStype_TEXT: {                    // if new text data is received
-			DEBUGPORT.printf("[%u] get Text: %s %u\r\n", num, payload, lenght);
+			DEBUGPORT.printf("[%u] get Text: %s %u\r\n", num, payload, length);
 			// send Response message to client
 			// webSocket.sendTXT(num, "Tack!");
 			//if (payload[0] == '#') {            // we get RGB data
 			//	break;
 			//}
-   			for(uint8_t i = 0; i < lenght; i++){
+   			for(uint8_t i = 0; i < length; i++){
 				gps.encode(payload[i]);
 			}
 		}
 		break;
 		case WStype_BIN:
-			DEBUGPORT.printf("[%u] get binary length: %u\r\n", num, lenght);
+			DEBUGPORT.printf("[%u] get binary length: %u\r\n", num, length);
 			// echo data back to browser
 			//webSocket.sendBIN(num, payload, length);
 		break;
