@@ -576,6 +576,8 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t *payload, size_t length)
    			for(uint8_t i = 0; i < length; i++){
 				gps.encode(payload[i]);
 			}
+			gps.encode('\r');
+			gps.encode('\n');
 		}
 		break;
 		case WStype_BIN:
