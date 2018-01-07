@@ -219,7 +219,7 @@ void loop() {
 
 	// Read from Serial and parse out NMEA messages into the Buffer
 	// and send chars to nmea encoder
-	nmeaBufferIndex = readNMEASerial( nmeaBuffer, nmeaBufferIndex, nmeaStatus);
+	readNMEASerial( nmeaBuffer, nmeaBufferIndex, nmeaStatus);
 
 	// Send out valid NMEA string to connected TCP and UDP clients, take care of incomming data  
 	handleTCP(nmeaBuffer, nmeaStatus);
@@ -227,17 +227,17 @@ void loop() {
 
 	// Use the string
 	if ( nmeaStatus ){											// We have a full string so use it now
-		ledBlink(100);												// Start a 100ms blink
+		ledBlink(100);											// Start a 100ms blink
 		//DEBUGPORT.print("\r\nNMEA Sentense: "); DEBUGPORT.println(nmeaBuffer);
 
 		log2file(nmeaBuffer);									// Save the string to the /nmea.log file 
 
-		StaticJsonBuffer<300> jsonBuffer;					// Allocate 300 on the heap for buffer
+		StaticJsonBuffer<300> jsonBuffer;						// Allocate 300 on the heap for buffer
 		JsonObject &json = nmeaToJSON(jsonBuffer);
 		json.printTo(DEBUGPORT);								// Log to serial debug
 		//DEBUGPORT.print("\r\njsonBuffer size: "); DEBUGPORT.println(jsonBuffer.size());		// Show used buffer size
 
-		size_t size = json.measureLength() + 1; 			// json serialized len+1
+		size_t size = json.measureLength() + 1; 				// json serialized len+1
 		char jsonString[size];
 		json.printTo(jsonString, size); 						// writes string to buffer
 		//DEBUGPORT.print("\r\njsonString size: "); DEBUGPORT.println(size);						// Show string length
@@ -245,18 +245,17 @@ void loop() {
 		
 		//DEBUGPORT.print("\r\nCurrent Time: "); DEBUGPORT.println(currentTimeToString());
 
-#if WSS
-		//webSocket.sendTXT(0, "C");
+		#if WSS
 		webSocket.sendTXT(0, jsonString);
-#endif
+		#endif
 		nmeaStatus = 0;											// String consumed -> reset
 	}
 
 	if(timeStatus() == timeNotSet)gpsSetTime();			// Set system time if not set or if sync is needed
 
-#if WSS
+	#if WSS
 	webSocket.loop();									// Check webSockets Events
-#endif
+	#endif
 	ledBlink(0);													// Handle LED blinker
 	 
 } // End loop()
@@ -422,33 +421,40 @@ void ledBlink(int start){
   }  
 }
 
-int readNMEASerial( char *buffer, int index, int &status ){
-  char c;                                              // temp for incoming serial char
-  if( NMEAPORT.available() ){                          // we have data in the UART buffer
+bool readNMEASerial(char *buffer, int &index, int &status){
+	char c;
+	if( NMEAPORT.available() ){							// we have data in the UART buffer
+		c = NMEAPORT.read();							// read one char, to not be blocking
+		//DEBUGPORT.write(c);							// Local echo of what we got
+		return parseNMEASerial(c, buffer, index, status);
+	}
+	return false;
+}
 
-	 c = NMEAPORT.read();                               // read one char from the UART buffer
-	 //DEBUGPORT.write(c);                                // Local echo of what we got
-	 gps.encode(c);                                     // Send to encoder
-	  
-	 if (c == '$' || c == '!' || index ){                // Start char or started to read? && c != '\n'
-		buffer[index++] = c;                              // Fill the buffer with chars
-		status = 0;
-				
-		if (buffer[index-4]=='*'){                        // Have we read the * and the two chksum chars and newline should be -3?
-		  buffer[index] = '\0';                           // Terminate the string
-		  index = 0;                                      // Then stop adding chars to the buffer
-		  status = 1;                                     // Done with a string
+bool parseNMEASerial(char c, char *buffer, int &index, int &status ){
+	bool tinyresult;
 
-		  //DEBUGPORT.print("chksum:");DEBUGPORT.printf(" %x\n", (unsigned char)calcNmeaChecksum(buffer) );
+	tinyresult = gps.encode(c);							// Send to TinyGPS encoder
+
+	if (c == '$' || c == '!' || index ){				// Start char or started to read? && c != '\n'
+		buffer[index++] = c;							// Fill the buffer with chars
+		status = 0;										// Not done yet
+			
+		if (buffer[index-4]=='*'){						// TODO: do we need if(index>4) Have we read the * and the two chksum chars and newline should be -3?
+			buffer[index] = '\0';						// Terminate the string
+			index = 0;									// Then stop adding chars to the buffer
+			status = 1;									// Done with a string
+
+			//DEBUGPORT.print("chksum:");DEBUGPORT.printf(" %x\r\n", (unsigned char)calcNmeaChecksum(buffer) );
 		}
-		
+	
 		if ( index > NMEA_MAX_LENGTH )index=0;             // Have we passed max, the startover         
-	 }
-	 else {
+	}
+	else {
 		index=0;  
-	 }
-  }                                                      // END serial available
-  return index;
+	}
+                                                   // END serial available
+	return tinyresult;
 }
 
 int calcNmeaChecksum(char *nmeaMessageBuffer){
@@ -574,10 +580,11 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t *payload, size_t length)
 			//	break;
 			//}
    			for(uint8_t i = 0; i < length; i++){
-				gps.encode(payload[i]);
+				//gps.encode(payload[i]);
+				parseNMEASerial(payload[i], nmeaBuffer, nmeaBufferIndex, nmeaStatus);
 			}
-			gps.encode('\r');
-			gps.encode('\n');
+			//gps.encode('\r');
+			//gps.encode('\n');
 		}
 		break;
 		case WStype_BIN:
@@ -611,7 +618,7 @@ boolean initWifi(boolean rst){
   }
   //sets timeout until configuration portal gets turned off
   //useful to make it all retry or go to sleep 180 in seconds
-  wifiManager.setTimeout(60);  //5 minutes 300
+  wifiManager.setTimeout(120);  //5 minutes 300
   
   //fetches ssid and pass from storage and tries to connect
   //if it does not connect it starts an access point with the specified name

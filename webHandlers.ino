@@ -14,6 +14,7 @@ int initWebHandlers(){
 	webServer.on("/api", HTTP_GET, handleAPI);
 	webServer.on("/sys", HTTP_GET, handleSys);
 	webServer.on("/reset", handleReset);
+	webServer.on("/r", handleReset);
 
 	//Setup FS Browser handlers
 	webServer.on("/list", HTTP_GET, handleFileList);                  //list directory
