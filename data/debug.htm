@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<meta http-equiv="Content-type" content="text/html; charset=utf-8">
+	<title>Debug</title>
+	<link href="bootstrap.min.css" rel="stylesheet">
+	<script type="text/javascript" src="chart.bundle.min.js"></script>
+	<script type="text/javascript" src="jquery-3.2.1.min.js"></script>
+	<script type="text/javascript" src="popper.min.js"></script>
+	<script type="text/javascript" src="bootstrap.min.js"></script>
+	<script type="text/javascript">
+
+var jsonArray = new Array();
+var myLineChart;
+var myURL = "http://" + window.location.hostname;
+
+ 
+function loadValues(){
+	var xh = new XMLHttpRequest();
+	xh.onreadystatechange = function(){
+		if (xh.readyState == 4){
+			if(xh.status == 200) {
+				parseLogfile(xh.responseText);
+			} 
+		}
+	};
+	xh.open("GET", "/nmea.log", true);
+	xh.send(null);
+};
+
+function parseLogfile(logFile){
+	var position = 0;
+	var strStart = 0;
+	var strEnd = 0;
+	var logFileEnd = logFile.lastIndexOf("}");
+
+	while(strEnd < logFileEnd){
+		strStart = logFile.indexOf("{",position);       // Find start of json string
+		strEnd = logFile.indexOf("}",strStart);         // Find end of json string
+		if(strEnd)position = strEnd;                    // start search for the next string here
+
+		jsonArray.push ( JSON.parse( logFile.substring( strStart, strEnd+1 ) ) );
+	}
+};
+
+function showValues(){
+		var div_id = document.getElementById("nmealog");
+
+		jsonArray.forEach(function (item, index, arr) {
+			div_id.value += item.gpstime + " " + item.millis + " " + item.speed + "\r\n";
+			addData(myLineChart, item.millis, item.speed);
+		});
+};
+
+function addData(mychart, newlabel, newdata) {
+	mychart.data.labels.push(newlabel);
+	mychart.data.datasets.forEach((dataset) => {
+			dataset.data.push(newdata);
+	});
+	mychart.update();
+}
+
+function initChart(){
+		var ctx = document.getElementById("myChart").getContext('2d');
+		myLineChart = new Chart(ctx, {
+				type: 'line',
+				data: {
+					labels: [],
+					datasets: [{
+						label: 'Speed',
+						data: [],
+						backgroundColor: [
+								'rgba(255, 99, 132, 0.2)',
+								'rgba(54, 162, 235, 0.2)',
+								'rgba(255, 206, 86, 0.2)',
+								'rgba(75, 192, 192, 0.2)',
+								'rgba(153, 102, 255, 0.2)',
+								'rgba(255, 159, 64, 0.2)'
+						],
+						borderColor: [
+								'rgba(255,99,132,1)',
+								'rgba(54, 162, 235, 1)',
+								'rgba(255, 206, 86, 1)',
+								'rgba(75, 192, 192, 1)',
+								'rgba(153, 102, 255, 1)',
+								'rgba(255, 159, 64, 1)'
+						],
+						borderWidth: 1
+					}]
+				},
+				options: {
+					scales: {
+							yAxes: [{
+									ticks: {
+											beginAtZero:true
+									}
+							}]
+					}
+				}
+		});
+};
+
+/* WebSocket Setup */
+var connection = new WebSocket('ws://' + window.location.hostname + ':81/');
+//var connection = new WebSocket('ws://192.168.1.212:81/');
+
+connection.onopen = function () {
+	connection.send('Message from Browser to ESP8266 yay its Working!! ' + new Date()); 
+};
+
+connection.onerror = function (error) {
+	console.log('WebSocket Error ', error);
+};
+
+connection.onmessage = function (e) {
+	console.log('Server: ', e.data);
+	elm = document.getElementById("wslog");
+	elm.value += e.data + "\r\n";
+	//connection.send('Time: ' + new Date()); 
+};
+
+function getSysStat(){
+	var xh = new XMLHttpRequest();
+	xh.onreadystatechange = function(){
+		if (xh.readyState == 4){
+			if(xh.status == 200) {
+				var elm = document.getElementById("wslog");
+				elm.value += xh.responseText + "\r\n";
+			} 
+		}
+	};
+	xh.open("GET", myURL + "/sys", true);
+	xh.send(null);
+};
+
+function getNmea(){
+	var xh = new XMLHttpRequest();
+	xh.onreadystatechange = function(){
+		if (xh.readyState == 4){
+			if(xh.status == 200) {
+				var elm = document.getElementById("wslog");
+				elm.value += xh.responseText + "\r\n";
+			} 
+		}
+	};
+	xh.open("GET", myURL + "/api", true);
+	xh.send(null);
+};
+
+function getConfig(){
+	var xh = new XMLHttpRequest();
+	xh.onreadystatechange = function(){
+		if (xh.readyState == 4){
+			if(xh.status == 200) {
+				var elm = document.getElementById("wslog");
+				elm.value += xh.responseText + "\r\n";
+			} 
+		}
+	};
+	xh.open("GET", myURL + "/config.json", true);
+	xh.send(null);
+};
+
+/* main() */
+
+
+x = setInterval(function(){ 
+		if(jsonArray.length){
+			clearInterval(x);
+			showValues();
+			myLineChart.update();
+		}
+}, 100);
+
+</script>
+</head>
+<body id="index" onload="initChart();loadValues();">
+<h1>Debug</h1>
+open -a Google\ Chrome --args --disable-web-security --user-data-dir
+<canvas id="myChart" width="300" height="100"></canvas>
+<div class="container">
+
+	<form>
+		<button type="button" class="btn btn-primary" onclick="connection.send('click!');">Send WS click!</button>
+		<button type="button" class="btn btn-primary" onclick="getSysStat();">get sysStats</button>
+		<button type="button" class="btn btn-primary" onclick="getNmea();">get NMEA</button>
+		<button type="button" class="btn btn-primary" onclick="getConfig();">get Config</button>
+		<div class="form-group row">
+			<div class="col form-group">
+				<input class="form-control" id="frmStr" type="text" placeholder="Default input">
+			</div>
+			<div class="form-group">
+				<button type="button" class="btn btn-primary" onclick="connection.send( document.getElementById('frmStr').value );">Send WS</button>
+			</div>
+		</div>
+		<div class="form-group">
+			<label for="exampleFormControlTextarea1">WebSocket log</label>
+			<textarea class="form-control" id="wslog" rows="6"></textarea>
+		</div>
+		<div class="form-group">
+			<label for="exampleFormControlTextarea1">NMEA log</label>
+			<textarea class="form-control" id="nmealog" rows="6"></textarea>
+		</div>
+	</form>
+</div>
+
+</body>
+</html>
