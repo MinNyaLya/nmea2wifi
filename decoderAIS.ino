@@ -190,6 +190,37 @@ double bin_to_I4(String temp_s){
 
 
 /*
+Field	  Len	  Description					      Member		Type
+0-5		  6	    Message type				      type	  	u
+6-7		  2	    Repeat Indicator		      repeat		u
+8-37	  30	  MMSI						          mmsi	  	u
+38-41	  4	    Navigation Status		      status		e
+42-49 	8	    Rate of Turn (ROT)			  turn	  	I3
+50-59 	10	  Speed Over Ground (SOG)		speed	  	U1
+60-60 	1	    Position Accuracy			    Accuracy	b
+61-88	  28	  Longitude					        lon	  		I4
+89-115  27  	Latitude					        lat	  		I4
+116-127 12  	Course Over Ground (COG)	course		U1
+128-136	9	    True Heading (HDG)			  heading		u
+137-142	6	    Time Stamp					      second		u
+143-144	2	    Maneuver Indicator			  maneuver	e
+145-147	3	    Spare									              x
+148-148	1	    RAIM flag					        raim	  	b
+149-167	19    Radio status				      radio	  	u
+
+u	Unsigned integer	
+U	Unsigned integer with scale - renders as float, suffix is decimal places	
+i	Signed integer	
+I	Signed integer with scale - renders as float, suffix is decimal places	
+b	Boolean	
+e	Enumerated type (controlled vocabulary)	
+x	Spare or reserved bit	
+t	String (packed six-bit ASCII)	
+d	Data (uninterpreted binary)	
+a	Array boundary, numeric suffix is maximum array size.
+
+
+
 !AIVDM,1,1,,B,177KQJ5000G?tO`K>RA1wUbN0TKH,0*5C
 
 Message sent (UTC) : 03:54:15
